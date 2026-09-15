@@ -13,6 +13,7 @@ interface IPermissionEntry {
   nom: string;
   type: string;
   niveau: string;
+  roleDefIds: number[];
 }
 
 interface IRoleDef {
@@ -34,6 +35,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const [selectedRoleId, setSelectedRoleId] = useState<number | "">("");
   const [addLoading, setAddLoading] = useState<boolean>(false);
   const [addMessage, setAddMessage] = useState<string>("");
+  const [removingId, setRemovingId] = useState<number | null>(null);
 
   const sp = getSP(props.context);
 
@@ -58,7 +60,8 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
         principalId: ra.PrincipalId,
         nom: ra.Member?.Title ?? "Inconnu",
         type: ra.Member?.PrincipalType === 8 ? "Groupe" : "Utilisateur",
-        niveau: (ra.RoleDefinitionBindings || []).map((r: any) => r.Name).join(", ")
+        niveau: (ra.RoleDefinitionBindings || []).map((r: any) => r.Name).join(", "),
+        roleDefIds: (ra.RoleDefinitionBindings || []).map((r: any) => r.Id)
       }));
       setPermissions(mapped);
     } catch (e) {
@@ -92,6 +95,37 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     }
   };
 
+  // --- Nouveau : suppression d'une permission ---
+  const handleRemovePermission = async (entry: IPermissionEntry): Promise<void> => {
+    // Garde-fou : ne pas retirer la dernière personne en "Contrôle total"
+    const estSeulControleTotal =
+      entry.niveau.includes("Contrôle total") &&
+      permissions.filter((p) => p.niveau.includes("Contrôle total")).length === 1;
+
+    if (estSeulControleTotal) {
+      setError(`Impossible de retirer ${entry.nom} : c'est la seule personne en "Contrôle total" sur cette bibliothèque. Ajoutez d'abord quelqu'un d'autre en Contrôle total avant de le retirer.`);
+      return;
+    }
+
+    const confirme = window.confirm(`Retirer tous les accès de "${entry.nom}" sur ${selectedLibrary} ?`);
+    if (!confirme) return;
+
+    setRemovingId(entry.principalId);
+    setError("");
+    try {
+      const list = sp.web.lists.getByTitle(selectedLibrary);
+      for (const roleDefId of entry.roleDefIds) {
+        await list.roleAssignments.remove(entry.principalId, roleDefId);
+      }
+      await loadPermissions(selectedLibrary);
+    } catch (e) {
+      console.error(e);
+      setError(`Erreur lors de la suppression de l'accès de ${entry.nom}.`);
+    } finally {
+      setRemovingId(null);
+    }
+  };
+
   return (
     <div>
       <h2>Permissions Manager</h2>
@@ -115,6 +149,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
                 <th>Nom</th>
                 <th>Type</th>
                 <th>Niveau</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -123,12 +158,17 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
                   <td>{p.nom}</td>
                   <td>{p.type}</td>
                   <td>{p.niveau}</td>
+                  <td>
+                    <button onClick={() => handleRemovePermission(p)} disabled={removingId === p.principalId}>
+                      {removingId === p.principalId ? "..." : "Retirer"}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
 
-          {/* --- Nouveau : formulaire d'ajout --- */}
+          {/* --- Formulaire d'ajout --- */}
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #ccc" }}>
             <h4>Ajouter un accès</h4>
             <input
@@ -159,4 +199,4 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   );
 };
 
-export default PermissionsManagerMkI;
+export default PermissionsManagerMkI; 
