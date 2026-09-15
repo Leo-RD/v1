@@ -1,0 +1,18 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/config.2.0.schema.json",
+  "version": "2.0",
+  "bundles": {
+    "permissions-manager-mk-i-web-part": {
+      "components": [
+        {
+          "entrypoint": "./lib/webparts/permissionsManagerMkI/PermissionsManagerMkIWebPart.js",
+          "manifest": "./src/webparts/permissionsManagerMkI/PermissionsManagerMkIWebPart.manifest.json"
+        }
+      ]
+    }
+  },
+  "externals": {},
+  "localizedResources": {
+    "PermissionsManagerMkIWebPartStrings": "lib/webparts/permissionsManagerMkI/loc/{locale}.js"
+  }
+}
