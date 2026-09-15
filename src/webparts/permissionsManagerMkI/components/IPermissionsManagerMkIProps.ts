@@ -1,6 +1,5 @@
+import { WebPartContext } from "@microsoft/sp-webpart-base";
+
 export interface IPermissionsManagerMkIProps {
-  description: string;
-  isDarkTheme: boolean;
-  environmentMessage: string;
-  userDisplayName: string;
+  context: WebPartContext;
 }

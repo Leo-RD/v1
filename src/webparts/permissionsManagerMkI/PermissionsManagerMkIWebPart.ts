@@ -22,18 +22,14 @@ export default class PermissionsManagerMkIWebPart extends BaseClientSideWebPart<
   private _environmentMessage: string = '';
 
   public render(): void {
-    const element: React.ReactElement<IPermissionsManagerMkIProps> = React.createElement(
-      PermissionsManagerMkI,
-      {
-        description: this.properties.description,
-        isDarkTheme: this._isDarkTheme,
-        environmentMessage: this._environmentMessage,
-        userDisplayName: this.context.pageContext.user.displayName
-      }
-    );
-
-    ReactDom.render(element, this.domElement);
-  }
+  const element: React.ReactElement<IPermissionsManagerMkIProps> = React.createElement(
+    PermissionsManagerMkI,
+    {
+      context: this.context
+    }
+  );
+  ReactDom.render(element, this.domElement);
+}
 
   protected onInit(): Promise<void> {
     return this._getEnvironmentMessage().then(message => {

@@ -1,44 +1,91 @@
 import * as React from 'react';
-import styles from './PermissionsManagerMkI.module.scss';
-import type { IPermissionsManagerMkIProps } from './IPermissionsManagerMkIProps';
-import { escape } from '@microsoft/sp-lodash-subset';
-import welcomeDark from '../assets/welcome-dark.png';
-import welcomeLight from '../assets/welcome-light.png';
+import { useState } from 'react';
+import { IPermissionsManagerMkIProps } from './IPermissionsManagerMkIProps';  // même dossier, donc "./" et pas "../"
+import { getSP } from '../pnpjsConfig';  // un seul niveau au-dessus, pas deux
+import "@pnp/sp/webs";
+import "@pnp/sp/lists";
+import "@pnp/sp/security/list";
 
-export default class PermissionsManagerMkI extends React.Component<IPermissionsManagerMkIProps> {
-  public render(): React.ReactElement<IPermissionsManagerMkIProps> {
-    const {
-      description,
-      isDarkTheme,
-      environmentMessage,
-      userDisplayName
-    } = this.props;
-
-    return (
-      <section className={`${styles.permissionsManagerMkI}`}>
-        <div className={styles.welcome}>
-          <img alt="" src={isDarkTheme ? welcomeDark : welcomeLight} className={styles.welcomeImage} />
-          <h2>Well done, {escape(userDisplayName)}!</h2>
-          <div>{environmentMessage}</div>
-          <div>Web part property value: <strong>{escape(description)}</strong></div>
-        </div>
-        <div>
-          <h3>Welcome to SharePoint Framework!</h3>
-          <p>
-            The SharePoint Framework (SPFx) is a extensibility model for Microsoft Viva, Microsoft Teams and SharePoint. It&#39;s the easiest way to extend Microsoft 365 with automatic Single Sign On, automatic hosting and industry standard tooling.
-          </p>
-          <h4>Learn more about SPFx development:</h4>
-          <ul className={styles.links}>
-            <li><a href="https://aka.ms/spfx" target="_blank" rel="noreferrer">SharePoint Framework Overview</a></li>
-            <li><a href="https://aka.ms/spfx-yeoman-graph" target="_blank" rel="noreferrer">Use Microsoft Graph in your solution</a></li>
-            <li><a href="https://aka.ms/spfx-yeoman-teams" target="_blank" rel="noreferrer">Build for Microsoft Teams using SharePoint Framework</a></li>
-            <li><a href="https://aka.ms/spfx-yeoman-viva" target="_blank" rel="noreferrer">Build for Microsoft Viva Connections using SharePoint Framework</a></li>
-            <li><a href="https://aka.ms/spfx-yeoman-store" target="_blank" rel="noreferrer">Publish SharePoint Framework applications to the marketplace</a></li>
-            <li><a href="https://aka.ms/spfx-yeoman-api" target="_blank" rel="noreferrer">SharePoint Framework API reference</a></li>
-            <li><a href="https://aka.ms/m365pnp" target="_blank" rel="noreferrer">Microsoft 365 Developer Community</a></li>
-          </ul>
-        </div>
-      </section>
-    );
-  }
+interface IPermissionEntry {
+  principalId: number;
+  nom: string;
+  type: string;
+  niveau: string;
 }
+
+const DIRECTIONS = ["Direction Informatique", "Direction Financiere", "Direction RH"];
+
+const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => {
+  const [selectedLibrary, setSelectedLibrary] = useState<string>("");
+  const [permissions, setPermissions] = useState<IPermissionEntry[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>("");
+
+  const sp = getSP(props.context);
+
+  const loadPermissions = async (libraryName: string): Promise<void> => {
+    setLoading(true);
+    setError("");
+    setSelectedLibrary(libraryName);
+    try {
+      const roleAssignments: any[] = await sp.web.lists
+        .getByTitle(libraryName)
+        .roleAssignments.expand("Member", "RoleDefinitionBindings")();
+
+      const mapped: IPermissionEntry[] = roleAssignments.map((ra) => ({
+        principalId: ra.PrincipalId,
+        nom: ra.Member?.Title ?? "Inconnu",
+        type: ra.Member?.PrincipalType === 8 ? "Groupe" : "Utilisateur",
+        niveau: (ra.RoleDefinitionBindings || []).map((r: any) => r.Name).join(", ")
+      }));
+      setPermissions(mapped);
+    } catch (e) {
+      console.error(e);
+      setError("Impossible de récupérer les permissions. Vérifiez le nom exact de la bibliothèque et vos droits d'accès.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2>Permissions Manager</h2>
+      <div>
+        {DIRECTIONS.map((dir) => (
+          <button key={dir} onClick={() => loadPermissions(dir)} style={{ marginRight: 8 }}>
+            {dir}
+          </button>
+        ))}
+      </div>
+
+      {loading && <p>Chargement...</p>}
+      {error && <p style={{ color: "red" }}>{error}</p>}
+
+      {!loading && !error && selectedLibrary && (
+        <div>
+          <h3>{selectedLibrary}</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th>Type</th>
+                <th>Niveau</th>
+              </tr>
+            </thead>
+            <tbody>
+              {permissions.map((p) => (
+                <tr key={p.principalId}>
+                  <td>{p.nom}</td>
+                  <td>{p.type}</td>
+                  <td>{p.niveau}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default PermissionsManagerMkI;
