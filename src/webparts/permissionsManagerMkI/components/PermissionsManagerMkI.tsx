@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { IPermissionsManagerMkIProps } from './IPermissionsManagerMkIProps';
-import { getSP } from '../pnpjsConfig';
+import { getSP, logAction } from '../pnpjsConfig';
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/security/list";
@@ -63,7 +63,8 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
         niveau: (ra.RoleDefinitionBindings || []).map((r: any) => r.Name).join(", "),
         roleDefIds: (ra.RoleDefinitionBindings || []).map((r: any) => r.Id)
       }));
-      setPermissions(mapped);
+        setPermissions(mapped);
+        await logAction(sp, "Consultation", libraryName);
     } catch (e) {
       console.error(e);
       setError("Impossible de récupérer les permissions. Vérifiez le nom exact de la bibliothèque et vos droits d'accès.");
@@ -84,6 +85,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
       const user = await sp.web.ensureUser(emailToAdd);
       await sp.web.lists.getByTitle(selectedLibrary).roleAssignments.add(user.Id, selectedRoleId as number);
       setAddMessage(`Accès accordé à ${emailToAdd}.`);
+      await logAction(sp, "Ajout", selectedLibrary, emailToAdd, `Niveau : ${roleDefs.find(r => r.Id === selectedRoleId)?.Name ?? ""}`);
       setEmailToAdd("");
       setSelectedRoleId("");
       await loadPermissions(selectedLibrary); // rafraîchit le tableau
@@ -114,9 +116,10 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     setError("");
     try {
       const list = sp.web.lists.getByTitle(selectedLibrary);
-      for (const roleDefId of entry.roleDefIds) {
+            for (const roleDefId of entry.roleDefIds) {
         await list.roleAssignments.remove(entry.principalId, roleDefId);
       }
+      await logAction(sp, "Suppression", selectedLibrary, entry.nom, `Niveaux retirés : ${entry.niveau}`);
       await loadPermissions(selectedLibrary);
     } catch (e) {
       console.error(e);
