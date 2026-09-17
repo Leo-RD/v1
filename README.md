@@ -1,13 +1,18 @@
 # permissions-manager-mk-i
 
 ## Summary
+Solution intégrée dans SharePoint ayant pour objectif de simplifier la gestion des droits, à destination des directeurs des différents poles d'une entité (financier, informatique, RH etc)
+Permet d'ajouter, de supprimer des droits de tout type
+Système de logs complet, et alerte par e-mail des modifications à l'aide d'un flux automatisé Power Automate qui fonctionne en arrière-plan.
 
-Short summary on functionality and used technologies.
-
-[picture of the solution in action, if possible]
+Utilisation de WebPart SPFx (SharePoint Framework), permettant d'inclure directement l'outil dans un site sharepoint en s'adaptant au contexte de l'utilisateur déjà connecté.
+Programme principal écrit en TypeScript.
+Utilisation de PnPjs.
+Utilisation de NodeJS/npm.
+Utilisation de React.
 
 ## Used SharePoint Framework Version
-
+SPFx 1.22+
 ![version](https://img.shields.io/badge/version-1.23.2-green.svg)
 
 ## Applies to
@@ -19,7 +24,9 @@ Short summary on functionality and used technologies.
 
 ## Prerequisites
 
-> Any special pre-requisites?
+> Nodejs v22
+> SPFx toolchain
+> VSCode, or any IDE
 
 ## Solution
 
@@ -53,19 +60,15 @@ Short summary on functionality and used technologies.
 
 Other build commands can be listed using `heft --help`.
 
-## Features
+> To deploy solution as .sppkg package
 
-Description of the extension that expands upon high-level summary above.
+- Ensure that you are at the solution folder
+- in the commmand-line run:
+  - `npx heft test --clean --production`
+  - `npx heft package-solution --production`
+  - The .sppkg file will be available in `[projectname]\sharepoint\solution`
 
-This extension illustrates the following concepts:
 
-- topic 1
-- topic 2
-- topic 3
-
-> Notice that better pictures and documentation will increase the sample usage and the value you are providing for others. Thanks for your submissions advance.
-
-> Share your web part with others through Microsoft 365 Patterns and Practices program to get visibility and exposure. More details on the community, open-source projects and other activities from http://aka.ms/m365pnp.
 
 ## References
 
