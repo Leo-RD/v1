@@ -1,4 +1,4 @@
-# permissions-manager-mk-i
+# Permissions Manager Mk. I
 
 Created and Developed by : Leo-RD
 
