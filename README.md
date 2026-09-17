@@ -3,9 +3,10 @@
 Created and Developed by : Leo-RD
 
 ## Summary
-An integrated SharePoint solution designed to simplify permissions management for department heads across an organization’s various divisions (finance, IT, HR, etc.).
+Permissions Manager is an integrated SharePoint webpart solution designed to simplify permissions management for department heads across an organization’s various divisions (finance, IT, HR, etc.).
 Allows users to add and remove permissions of any type.
-Comprehensive logging system and email alerts for changes via an automated Power Automate workflow running in the background.
+The point is not to replace the current system for the IT staff or the admins, but rather to give non IT persons the ability to manage this easliy.
+Comprehensive logging system and email alerts for changes via a Power Automate workflow running in the background.
 
 Uses SPFx (SharePoint Framework) Web Parts, allowing the tool to be directly embedded in a SharePoint site while adapting to the context of the currently logged-in user.
 Main program written in React TypeScript.
@@ -35,7 +36,10 @@ SPFx
 
 **VSCode or any IDE**
 
-## Version history
+**Links**
+  - in `[projectname]\config`, you need to change the value for `"InitialPage"` to your own SharePoint site, in order to use the hosted workbench. You'll also have to enable local networks in the browser you're using.
+
+ ## Version history
 
 | Version | Date             | Comments        |
 | ------- | ---------------- | --------------- |
@@ -56,8 +60,7 @@ SPFx
   - `npm install -g @rushstack/heft`
   - `npm install`
   - `heft start`
-
-> Include any additional steps as needed.
+- Install necessary programs (see Prerequisites.)
 
 Other build commands can be listed using `heft --help`.
 
@@ -68,6 +71,8 @@ Other build commands can be listed using `heft --help`.
   - `npx heft test --clean --production`
   - `npx heft package-solution --production`
   - The .sppkg file will be available in `[projectname]\sharepoint\solution`
+
+Then you'll be able to drag and drop this file in your site's AppCatalog, and deploy it to make it available to use as a WebPart component you can add to a page.
 
 
 ## References
