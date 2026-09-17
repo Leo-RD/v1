@@ -29,8 +29,10 @@ SPFx
 **Nodejs v22** 
   - nodejs.org
   - Check installation : `node --version` ; `npm --version`
+
 **SPFx toolchain**
   - in solution folder, run : `npm install @rushstack/heft yo @microsoft/generator-sharepoint --global`
+
 **VSCode or any IDE**
 
 ## Version history
