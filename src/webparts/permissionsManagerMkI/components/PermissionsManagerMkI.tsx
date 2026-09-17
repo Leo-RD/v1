@@ -22,6 +22,7 @@ interface IRoleDef {
 }
 
 const DIRECTIONS = ["Direction Informatique", "Direction Financiere", "Direction RH"];
+const GROUPE_ASSOCIES = "Associés";
 
 const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => {
   const [selectedLibrary, setSelectedLibrary] = useState<string>("");
@@ -37,6 +38,12 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const [addMessage, setAddMessage] = useState<string>("");
   const [removingId, setRemovingId] = useState<number | null>(null);
 
+  // --- Nouveau : pour la restriction d'accès ---
+  const [authChecked, setAuthChecked] = useState<boolean>(false);
+  const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
+
+
+
   const sp = getSP(props.context);
 
   // Récupère une seule fois les niveaux d'accès disponibles sur le site
@@ -44,6 +51,18 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     sp.web.roleDefinitions().then((defs: any[]) => {
       setRoleDefs(defs.map((d) => ({ Id: d.Id, Name: d.Name })));
     }).catch((e) => console.error("Impossible de charger les niveaux d'accès", e));
+  }, []);
+
+  useEffect(() => {
+  sp.web.currentUser.groups().then((groups: any[]) => {
+    const autorise = groups.some((g) => g.Title === GROUPE_ASSOCIES);
+    setIsAuthorized(autorise);
+    setAuthChecked(true);
+  }).catch((e) => {
+    console.error("Impossible de vérifier les groupes de l'utilisateur", e);
+    setIsAuthorized(false); // en cas de doute, on bloque l'accès plutôt que de l'autoriser
+    setAuthChecked(true);
+  });
   }, []);
 
   const loadPermissions = async (libraryName: string): Promise<void> => {
@@ -128,6 +147,14 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
       setRemovingId(null);
     }
   };
+
+  if (!authChecked) {
+    return <p>Vérification des autorisations...</p>;
+  }
+
+  if (!isAuthorized) {
+    return <p>Vous n'avez pas accès à cet outil. Contactez la direction informatique si vous pensez qu'il s'agit d'une erreur.</p>;
+  }
 
   return (
     <div>

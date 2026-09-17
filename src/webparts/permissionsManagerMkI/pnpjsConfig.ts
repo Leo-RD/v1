@@ -5,6 +5,7 @@ import "@pnp/sp/items";
 import "@pnp/sp/security/list";
 import "@pnp/sp/security/web";
 import "@pnp/sp/site-users/web";
+import "@pnp/sp/site-groups/web";
 import { WebPartContext } from "@microsoft/sp-webpart-base";
 
 export const getSP = (context: WebPartContext) => {
