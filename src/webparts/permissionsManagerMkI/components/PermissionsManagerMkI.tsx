@@ -2,11 +2,15 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { IPermissionsManagerMkIProps } from './IPermissionsManagerMkIProps';
 import { getSP, logAction } from '../pnpjsConfig';
+import styles from './PermissionsManagerMkI.module.scss';
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/security/list";
 import "@pnp/sp/security/web";
 import "@pnp/sp/site-users/web";
+import "@pnp/sp/site-groups/web";
+
+
 
 interface IPermissionEntry {
   principalId: number;
@@ -22,7 +26,7 @@ interface IRoleDef {
 }
 
 const DIRECTIONS = ["Direction Informatique", "Direction Financiere", "Direction RH"];
-const GROUPE_ASSOCIES = "Associés";
+const GROUPE_ASSOCIES = "Associés"; // À adapter au nom exact du groupe SharePoint
 
 const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => {
   const [selectedLibrary, setSelectedLibrary] = useState<string>("");
@@ -30,7 +34,6 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
-  // --- Nouveau : état pour le formulaire d'ajout ---
   const [roleDefs, setRoleDefs] = useState<IRoleDef[]>([]);
   const [emailToAdd, setEmailToAdd] = useState<string>("");
   const [selectedRoleId, setSelectedRoleId] = useState<number | "">("");
@@ -38,31 +41,27 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const [addMessage, setAddMessage] = useState<string>("");
   const [removingId, setRemovingId] = useState<number | null>(null);
 
-  // --- Nouveau : pour la restriction d'accès ---
   const [authChecked, setAuthChecked] = useState<boolean>(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
 
-
-
   const sp = getSP(props.context);
 
-  // Récupère une seule fois les niveaux d'accès disponibles sur le site
+  useEffect(() => {
+    sp.web.currentUser.groups().then((groups: any[]) => {
+      const autorise = groups.some((g) => g.Title === GROUPE_ASSOCIES);
+      setIsAuthorized(autorise);
+      setAuthChecked(true);
+    }).catch((e) => {
+      console.error("Impossible de vérifier les groupes de l'utilisateur", e);
+      setIsAuthorized(false);
+      setAuthChecked(true);
+    });
+  }, []);
+
   useEffect(() => {
     sp.web.roleDefinitions().then((defs: any[]) => {
       setRoleDefs(defs.map((d) => ({ Id: d.Id, Name: d.Name })));
     }).catch((e) => console.error("Impossible de charger les niveaux d'accès", e));
-  }, []);
-
-  useEffect(() => {
-  sp.web.currentUser.groups().then((groups: any[]) => {
-    const autorise = groups.some((g) => g.Title === GROUPE_ASSOCIES);
-    setIsAuthorized(autorise);
-    setAuthChecked(true);
-  }).catch((e) => {
-    console.error("Impossible de vérifier les groupes de l'utilisateur", e);
-    setIsAuthorized(false); // en cas de doute, on bloque l'accès plutôt que de l'autoriser
-    setAuthChecked(true);
-  });
   }, []);
 
   const loadPermissions = async (libraryName: string): Promise<void> => {
@@ -82,8 +81,8 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
         niveau: (ra.RoleDefinitionBindings || []).map((r: any) => r.Name).join(", "),
         roleDefIds: (ra.RoleDefinitionBindings || []).map((r: any) => r.Id)
       }));
-        setPermissions(mapped);
-        await logAction(sp, "Consultation", libraryName);
+      setPermissions(mapped);
+      await logAction(sp, "Consultation", libraryName);
     } catch (e) {
       console.error(e);
       setError("Impossible de récupérer les permissions. Vérifiez le nom exact de la bibliothèque et vos droits d'accès.");
@@ -92,7 +91,6 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     }
   };
 
-  // --- Nouveau : ajout d'une permission ---
   const handleAddPermission = async (): Promise<void> => {
     if (!emailToAdd || selectedRoleId === "") {
       setAddMessage("Renseignez un email et un niveau d'accès.");
@@ -107,18 +105,16 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
       await logAction(sp, "Ajout", selectedLibrary, emailToAdd, `Niveau : ${roleDefs.find(r => r.Id === selectedRoleId)?.Name ?? ""}`);
       setEmailToAdd("");
       setSelectedRoleId("");
-      await loadPermissions(selectedLibrary); // rafraîchit le tableau
-    } catch (e) {
+      await loadPermissions(selectedLibrary);
+    } catch (e: any) {
       console.error(e);
-      setAddMessage("Erreur lors de l'ajout. Vérifiez que l'adresse email correspond bien à un compte du tenant.");
+      setAddMessage(`Erreur lors de l'ajout : ${e?.message || "erreur inconnue, voir la console (F12)."}`);
     } finally {
       setAddLoading(false);
     }
   };
 
-  // --- Nouveau : suppression d'une permission ---
   const handleRemovePermission = async (entry: IPermissionEntry): Promise<void> => {
-    // Garde-fou : ne pas retirer la dernière personne en "Contrôle total"
     const estSeulControleTotal =
       entry.niveau.includes("Contrôle total") &&
       permissions.filter((p) => p.niveau.includes("Contrôle total")).length === 1;
@@ -135,61 +131,77 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     setError("");
     try {
       const list = sp.web.lists.getByTitle(selectedLibrary);
-            for (const roleDefId of entry.roleDefIds) {
+      for (const roleDefId of entry.roleDefIds) {
         await list.roleAssignments.remove(entry.principalId, roleDefId);
       }
       await logAction(sp, "Suppression", selectedLibrary, entry.nom, `Niveaux retirés : ${entry.niveau}`);
       await loadPermissions(selectedLibrary);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      setError(`Erreur lors de la suppression de l'accès de ${entry.nom}.`);
+      setError(`Erreur lors de la suppression de l'accès de ${entry.nom} : ${e?.message || "erreur inconnue, voir la console (F12)."}`);
     } finally {
       setRemovingId(null);
     }
   };
 
   if (!authChecked) {
-    return <p>Vérification des autorisations...</p>;
+    return <div className={styles.container}><p className={styles.statusText}>Vérification des autorisations...</p></div>;
   }
 
   if (!isAuthorized) {
-    return <p>Vous n'avez pas accès à cet outil. Contactez la direction informatique si vous pensez qu'il s'agit d'une erreur.</p>;
+    return (
+      <div className={styles.container}>
+        <p className={styles.unauthorized}>Vous n'avez pas accès à cet outil. Contactez la direction informatique si vous pensez qu'il s'agit d'une erreur.</p>
+      </div>
+    );
   }
 
   return (
-    <div>
-      <h2>Permissions Manager</h2>
-      <div>
+    <div className={styles.container}>
+      <div className={styles.masthead}>
+        <h1 className={styles.title}>Permissions Manager</h1>
+        <p className={styles.subtitle}>Gestion des accès aux bibliothèques par direction</p>
+      </div>
+
+      <div className={styles.tabs}>
         {DIRECTIONS.map((dir) => (
-          <button key={dir} onClick={() => loadPermissions(dir)} style={{ marginRight: 8 }}>
+          <button
+            key={dir}
+            className={dir === selectedLibrary ? `${styles.tab} ${styles.tabActive}` : styles.tab}
+            onClick={() => loadPermissions(dir)}
+          >
             {dir}
           </button>
         ))}
       </div>
 
-      {loading && <p>Chargement...</p>}
-      {error && <p style={{ color: "red" }}>{error}</p>}
+      {loading && <p className={styles.statusText}>Chargement...</p>}
+      {error && <p className={styles.errorBanner}>{error}</p>}
 
       {!loading && !error && selectedLibrary && (
         <div>
-          <h3>{selectedLibrary}</h3>
-          <table>
+          <h2 className={styles.libraryTitle}>{selectedLibrary}</h2>
+          <table className={styles.table}>
             <thead>
               <tr>
                 <th>Nom</th>
                 <th>Type</th>
                 <th>Niveau</th>
-                <th>Actions</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {permissions.map((p) => (
                 <tr key={p.principalId}>
                   <td>{p.nom}</td>
-                  <td>{p.type}</td>
-                  <td>{p.niveau}</td>
+                  <td><span className={styles.typeTag}>{p.type}</span></td>
+                  <td className={p.niveau.includes("Contrôle total") ? styles.levelFullControl : undefined}>{p.niveau}</td>
                   <td>
-                    <button onClick={() => handleRemovePermission(p)} disabled={removingId === p.principalId}>
+                    <button
+                      className={styles.removeButton}
+                      onClick={() => handleRemovePermission(p)}
+                      disabled={removingId === p.principalId}
+                    >
                       {removingId === p.principalId ? "..." : "Retirer"}
                     </button>
                   </td>
@@ -198,30 +210,31 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
             </tbody>
           </table>
 
-          {/* --- Formulaire d'ajout --- */}
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #ccc" }}>
-            <h4>Ajouter un accès</h4>
-            <input
-              type="email"
-              placeholder="email@cofidestsas.com"
-              value={emailToAdd}
-              onChange={(e) => setEmailToAdd(e.target.value)}
-              style={{ marginRight: 8 }}
-            />
-            <select
-              value={selectedRoleId}
-              onChange={(e) => setSelectedRoleId(e.target.value ? Number(e.target.value) : "")}
-              style={{ marginRight: 8 }}
-            >
-              <option value="">-- Niveau d'accès --</option>
-              {roleDefs.map((r) => (
-                <option key={r.Id} value={r.Id}>{r.Name}</option>
-              ))}
-            </select>
-            <button onClick={handleAddPermission} disabled={addLoading}>
-              {addLoading ? "Ajout..." : "Ajouter"}
-            </button>
-            {addMessage && <p>{addMessage}</p>}
+          <div className={styles.addPanel}>
+            <h3 className={styles.addPanelTitle}>Ajouter un accès</h3>
+            <div className={styles.addForm}>
+              <input
+                type="email"
+                className={styles.input}
+                placeholder="email@cofidestsas.com"
+                value={emailToAdd}
+                onChange={(e) => setEmailToAdd(e.target.value)}
+              />
+              <select
+                className={styles.select}
+                value={selectedRoleId}
+                onChange={(e) => setSelectedRoleId(e.target.value ? Number(e.target.value) : "")}
+              >
+                <option value="">Niveau d'accès</option>
+                {roleDefs.map((r) => (
+                  <option key={r.Id} value={r.Id}>{r.Name}</option>
+                ))}
+              </select>
+              <button className={styles.primaryButton} onClick={handleAddPermission} disabled={addLoading}>
+                {addLoading ? "Ajout..." : "Ajouter"}
+              </button>
+            </div>
+            {addMessage && <p className={styles.feedbackMessage}>{addMessage}</p>}
           </div>
         </div>
       )}
@@ -229,4 +242,4 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   );
 };
 
-export default PermissionsManagerMkI; 
+export default PermissionsManagerMkI;

@@ -1,29 +1,215 @@
-.permissionsManagerMkI {
-  overflow: hidden;
-  padding: 1em;
-  color: "[theme:bodyText, default: #323130]";
-  color: var(--bodyText);
+.container {
+  --pm-bg: #F7F6F2;
+  --pm-surface: #FFFFFF;
+  --pm-ink: #1C2B33;
+  --pm-ink-muted: #5B6B72;
+  --pm-accent: #0F4C5C;
+  --pm-accent-soft: #E4EEF0;
+  --pm-border: #E1DED4;
+  --pm-danger: #9B4238;
+  --pm-danger-soft: #F5E9E7;
+
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--pm-ink);
+  background: var(--pm-bg);
+  padding: 24px;
+  max-width: 880px;
 }
 
-.welcome {
-  text-align: center;
+.masthead {
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--pm-border);
 }
 
-.welcomeImage {
+.title {
+  font-family: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  font-size: 28px;
+  font-weight: 400;
+  margin: 0 0 4px 0;
+  color: var(--pm-ink);
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--pm-ink-muted);
+  margin: 0;
+}
+
+.tabs {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--pm-border);
+  margin-bottom: 24px;
+}
+
+.tab {
+  background: none;
+  border: none;
+  padding: 10px 2px 12px 2px;
+  font-size: 14px;
+  color: var(--pm-ink-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.tab:hover {
+  color: var(--pm-ink);
+}
+
+.tabActive {
+  color: var(--pm-accent);
+  border-bottom-color: var(--pm-accent);
+  font-weight: 600;
+}
+
+.statusText {
+  font-size: 14px;
+  color: var(--pm-ink-muted);
+  padding: 8px 0;
+}
+
+.errorBanner {
+  background: var(--pm-danger-soft);
+  color: var(--pm-danger);
+  border-left: 3px solid var(--pm-danger);
+  padding: 10px 14px;
+  font-size: 14px;
+  margin-bottom: 16px;
+  border-radius: 2px;
+}
+
+.libraryTitle {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.table {
   width: 100%;
-  max-width: 420px;
+  border-collapse: collapse;
+  font-size: 14px;
+  margin-bottom: 24px;
 }
 
-.links {
-  a {
-    text-decoration: none;
-    color: "[theme:link, default:#03787c]";
-    color: var(--link); // note: CSS Custom Properties support is limited to modern browsers only
+.table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--pm-ink-muted);
+  font-size: 12px;
+  padding: 0 12px 8px 0;
+  border-bottom: 1px solid var(--pm-border);
+}
 
-    &:hover {
-      text-decoration: underline;
-      color: "[theme:linkHovered, default: #014446]";
-      color: var(--linkHovered); // note: CSS Custom Properties support is limited to modern browsers only
-    }
-  }
+.table td {
+  padding: 12px 12px 12px 0;
+  border-bottom: 1px solid var(--pm-border);
+  vertical-align: middle;
+}
+
+.typeTag {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--pm-accent-soft);
+  color: var(--pm-accent);
+}
+
+.levelFullControl {
+  color: var(--pm-danger);
+  font-weight: 600;
+}
+
+.removeButton {
+  background: none;
+  border: 1px solid var(--pm-border);
+  color: var(--pm-danger);
+  font-size: 13px;
+  padding: 5px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.removeButton:hover:not(:disabled) {
+  background: var(--pm-danger-soft);
+  border-color: var(--pm-danger);
+}
+
+.removeButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.addPanel {
+  background: var(--pm-surface);
+  border: 1px solid var(--pm-border);
+  border-radius: 4px;
+  padding: 20px;
+}
+
+.addPanelTitle {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+  color: var(--pm-ink-muted);
+}
+
+.addForm {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.input, .select {
+  font-size: 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--pm-border);
+  border-radius: 3px;
+  background: var(--pm-surface);
+  color: var(--pm-ink);
+}
+
+.input:focus, .select:focus {
+  outline: 2px solid var(--pm-accent);
+  outline-offset: 1px;
+  border-color: var(--pm-accent);
+}
+
+.primaryButton {
+  background: var(--pm-accent);
+  color: #FFFFFF;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 9px 18px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.primaryButton:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.primaryButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.feedbackMessage {
+  font-size: 13px;
+  color: var(--pm-ink-muted);
+  margin-top: 10px;
+}
+
+.unauthorized {
+  padding: 40px 24px;
+  text-align: center;
+  color: var(--pm-ink-muted);
+  font-size: 14px;
 }
