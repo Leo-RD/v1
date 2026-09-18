@@ -1,13 +1,21 @@
-# permissions-manager-mk-i
+# Permissions Manager Mk. I
+
+Created and Developed by : Leo-RD
 
 ## Summary
+Permissions Manager is an integrated SharePoint webpart solution designed to simplify permissions management for department heads across an organization’s various divisions (finance, IT, HR, etc.).
+Allows users to add and remove permissions of any type.
+The point is not to replace the current system for the IT staff or the admins, but rather to give non IT persons the ability to manage this easliy.
+Comprehensive logging system and email alerts for changes via a Power Automate workflow running in the background.
 
-Short summary on functionality and used technologies.
+Uses SPFx (SharePoint Framework) Web Parts, allowing the tool to be directly embedded in a SharePoint site while adapting to the context of the currently logged-in user.
+Main program written in React TypeScript.
+Uses PnPjs.
+Uses Node.js/npm.
 
-[picture of the solution in action, if possible]
 
 ## Used SharePoint Framework Version
-
+SPFx
 ![version](https://img.shields.io/badge/version-1.23.2-green.svg)
 
 ## Applies to
@@ -19,20 +27,24 @@ Short summary on functionality and used technologies.
 
 ## Prerequisites
 
-> Any special pre-requisites?
+**Nodejs v22** 
+  - nodejs.org
+  - Check installation : `node --version` ; `npm --version`
 
-## Solution
+**SPFx toolchain**
+  - in the command-line, run : `npm install @rushstack/heft yo @microsoft/generator-sharepoint --global`
 
-| Solution    | Author(s)                                               |
-| ----------- | ------------------------------------------------------- |
-| folder name | Author details (name, company, twitter alias with link) |
+**VSCode or any IDE**
 
-## Version history
+**Links**
+  - in `[projectname]\config`, you need to change the value for `"InitialPage"` to your own SharePoint site, in order to use the hosted workbench. You'll also have to enable local networks in the browser you're using.
+
+ ## Version history
 
 | Version | Date             | Comments        |
 | ------- | ---------------- | --------------- |
-| 1.1     | March 10, 2021   | Update comment  |
-| 1.0     | January 29, 2021 | Initial release |
+| 0.1     | September 16, 2026  | MVP  |
+| 1.0     | ???? ??, 2026 | Initial release |
 
 ## Disclaimer
 
@@ -40,7 +52,7 @@ Short summary on functionality and used technologies.
 
 ---
 
-## Minimal Path to Awesome
+## Quick Start guide
 
 - Clone this repository
 - Ensure that you are at the solution folder
@@ -48,24 +60,20 @@ Short summary on functionality and used technologies.
   - `npm install -g @rushstack/heft`
   - `npm install`
   - `heft start`
-
-> Include any additional steps as needed.
+- Install necessary programs (see Prerequisites.)
 
 Other build commands can be listed using `heft --help`.
 
-## Features
+## To deploy solution as .sppkg package
 
-Description of the extension that expands upon high-level summary above.
+- Ensure that you are at the solution folder
+- in the commmand-line run:
+  - `npx heft test --clean --production`
+  - `npx heft package-solution --production`
+  - The .sppkg file will be available in `[projectname]\sharepoint\solution`
 
-This extension illustrates the following concepts:
+Then you'll be able to drag and drop this file in your site's AppCatalog, and deploy it to make it available to use as a WebPart component you can add to a page.
 
-- topic 1
-- topic 2
-- topic 3
-
-> Notice that better pictures and documentation will increase the sample usage and the value you are providing for others. Thanks for your submissions advance.
-
-> Share your web part with others through Microsoft 365 Patterns and Practices program to get visibility and exposure. More details on the community, open-source projects and other activities from http://aka.ms/m365pnp.
 
 ## References
 
