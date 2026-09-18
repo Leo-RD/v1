@@ -3,7 +3,7 @@
   "solution": {
     "name": "permissions-manager-mk-i-client-side-solution",
     "id": "99c3aaa5-499a-4564-b088-4ff952c5fa2d",
-    "version": "1.0.0.0",
+    "version": "1.0.1.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
@@ -30,11 +30,11 @@
         "title": "permissions-manager-mk-i Feature",
         "description": "The feature that activates elements of the permissions-manager-mk-i solution.",
         "id": "ff2eb6a9-e441-4fc6-b940-fca1014a4c5b",
-        "version": "1.0.0.0"
+        "version": "1.0.1.0"
       }
     ]
   },
   "paths": {
-    "zippedPackage": "solution/permissions-manager-mk-i.sppkg"
+    "zippedPackage": "solution/permissions-manager-mk-1dot2.sppkg"
   }
 }
