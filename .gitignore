@@ -36,3 +36,7 @@ obj
 
 # Styles Generated Code
 *.scss.ts
+
+# docs
+docs
+CLAUDE.md
