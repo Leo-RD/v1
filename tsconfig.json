@@ -1,3 +1,5 @@
+// Configuration du compilateur TypeScript : hérite entièrement de la configuration de base du rig SPFx.
+
 {
   "extends": "./node_modules/@microsoft/spfx-web-build-rig/profiles/default/tsconfig-base.json"
 }

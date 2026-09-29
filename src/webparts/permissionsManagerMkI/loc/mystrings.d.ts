@@ -1,3 +1,5 @@
+// Déclaration TypeScript des chaînes localisées (loc/en-us.js), importables via le module "PermissionsManagerMkIWebPartStrings".
+
 declare interface IPermissionsManagerMkIWebPartStrings {
   PropertyPaneDescription: string;
   BasicGroupName: string;

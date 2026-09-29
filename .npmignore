@@ -1,3 +1,6 @@
+# Filtre de publication npm (généré par le scaffold SPFx). Non utilisé en pratique :
+# la solution est déployée via le paquet .sppkg, pas publiée sur npm.
+
 # Ignore everything by default
 **
 

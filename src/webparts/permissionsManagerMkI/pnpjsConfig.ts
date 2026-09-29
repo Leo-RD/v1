@@ -1,3 +1,9 @@
+// Configuration PnPjs et journalisation.
+// - getSP(context) : renvoie une instance PnPjs authentifiée avec les droits délégués de l'utilisateur connecté.
+//   Les imports "@pnp/sp/..." ci-dessous activent sélectivement les fonctionnalités utilisées (listes, sécurité, utilisateurs, groupes).
+// - logAction(...) : écrit une entrée dans la liste SharePoint "Logs" (colonnes Action, Bibliotheque, Cible, Details),
+//   ce qui déclenche le flux Power Automate d'alerte par email. Un échec de log ne bloque JAMAIS l'action principale.
+
 import { spfi, SPFx } from "@pnp/sp";
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";

@@ -1,3 +1,6 @@
+// Réglages VS Code propres au projet : masque les fichiers générés dans l'explorateur
+// et force l'usage de la version TypeScript installée localement.
+
 // Place your settings in this file to overwrite default and user settings.
 {
   // Configure glob patterns for excluding files and folders in the file explorer.

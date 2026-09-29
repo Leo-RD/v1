@@ -1,3 +1,6 @@
+// Styles du web part (SCSS module : les classes sont préfixées automatiquement et importées via "styles.xxx").
+// Charte "registre comptable" : fond #F7F6F2, accent #0F4C5C, polices déclarées en @font-face.
+
 // Open Sans (titres). Un @import url(...) vers Google Fonts fait planter sp-css-loader (SPFx) au build,
 // on déclare donc la police directement via @font-face (fichiers servis par jsDelivr).
 @font-face {
@@ -387,35 +390,7 @@
   cursor: not-allowed;
 }
 
-// ---------- Panneau membres ----------
-
-.membersPanel {
-  background: var(--pm-surface);
-  border: 1px solid var(--pm-grey-soft);
-  border-top: 3px solid var(--pm-accent);
-  border-radius: var(--pm-radius);
-  padding: 20px;
-  margin-bottom: 24px;
-
-  .tableWrapper {
-    margin-bottom: 16px;
-  }
-}
-
-.panelHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.panelTitle {
-  font-family: var(--pm-font-heading);
-  font-size: 16px;
-  font-weight: 700;
-  margin: 0;
-}
+// ---------- Formulaire en ligne (modale des membres) ----------
 
 .inlineForm {
   display: flex;
@@ -477,6 +452,15 @@
   border-top: 4px solid var(--pm-accent);
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
   animation: pmSlideUp 0.18s ease-out;
+}
+
+// Modale des membres : plus large pour afficher le tableau (nom, email, type)
+.modalWide {
+  max-width: 760px;
+
+  .tableWrapper {
+    margin-bottom: 0;
+  }
 }
 
 .modalHeader {

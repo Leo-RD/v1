@@ -1,3 +1,13 @@
+// Composant React principal : toute l'interface et la logique métier du gestionnaire de permissions.
+// Fonctionnement :
+// - Vérifie que l'utilisateur appartient au groupe SharePoint "Associés" ; sinon l'outil n'est pas affiché.
+// - Liste les "directions" = bibliothèques de documents dont le titre commence par "Direction ".
+// - Pour la direction choisie : affiche les permissions (utilisateurs et groupes), permet d'en ajouter,
+//   d'en supprimer, de gérer les membres des groupes SharePoint et de créer une nouvelle direction.
+// - Garde-fou : impossible de retirer le dernier titulaire du niveau "Contrôle total".
+// - Chaque action est journalisée via logAction (voir pnpjsConfig.ts).
+// Prérequis : l'héritage des permissions de la bibliothèque doit avoir été rompu par l'IT (sinon erreur 400).
+
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { IPermissionsManagerMkIProps } from './IPermissionsManagerMkIProps';
@@ -160,9 +170,15 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
 
   // Fermeture des modales avec la touche Échap (sauf pendant une opération en cours)
   useEffect(() => {
-    if (!isAddModalOpen && !isCreateModalOpen) return;
+    if (!isAddModalOpen && !isCreateModalOpen && !membersGroup) return;
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== "Escape") return;
+      if (membersGroup && !memberAddLoading && removingMemberId === null) {
+        setMembersGroup(null);
+        setMembers([]);
+        setMemberEmailToAdd("");
+        setMemberMessage("");
+      }
       if (isAddModalOpen && !addLoading) {
         setIsAddModalOpen(false);
         setAddMessage("");
@@ -174,7 +190,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isAddModalOpen, addLoading, isCreateModalOpen, createLoading]);
+  }, [isAddModalOpen, addLoading, isCreateModalOpen, createLoading, membersGroup, memberAddLoading, removingMemberId]);
 
   const loadPermissions = async (libraryName: string): Promise<void> => {
     setLoading(true);
@@ -277,6 +293,14 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     setMembers([]);
     setMemberEmailToAdd("");
     setMemberMessage("");
+  };
+
+  // Pas de fermeture de la modale des membres pendant un ajout ou un retrait en cours
+  const membersBusy = memberAddLoading || removingMemberId !== null;
+
+  const closeMembersModal = (): void => {
+    if (membersBusy) return;
+    closeMembers();
   };
 
   // Le garde-fou compte tous les titulaires (utilisateurs comme groupes) du Contrôle total
@@ -577,13 +601,29 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
             </table>
           </div>
 
-          {membersGroup && (
-            <div className={styles.membersPanel}>
-              <div className={styles.panelHeader}>
-                <h3 className={styles.panelTitle}>Membres du groupe « {membersGroup.nom} »</h3>
-                <button className={styles.secondaryButton} onClick={closeMembers}>Fermer</button>
-              </div>
+        </div>
+      )}
 
+      {membersGroup && (
+        <div className={styles.modalBackdrop} onClick={closeMembersModal}>
+          <div
+            className={`${styles.modal} ${styles.modalWide}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pm-members-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <h3 id="pm-members-modal-title" className={styles.modalTitle}>Membres du groupe « {membersGroup.nom} »</h3>
+                <p className={styles.modalSubtitle}>{selectedLibrary}</p>
+              </div>
+              <button className={styles.closeButton} onClick={closeMembersModal} disabled={membersBusy} aria-label="Fermer">
+                ×
+              </button>
+            </div>
+
+            <div className={styles.modalBody}>
               {membersLoading ? (
                 <p className={styles.statusText}>Chargement des membres...</p>
               ) : members.length === 0 ? (
@@ -623,21 +663,32 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
                 </div>
               )}
 
-              <div className={styles.inlineForm}>
-                <input
-                  type="email"
-                  className={styles.input}
-                  placeholder="email@cofidestsas.com"
-                  value={memberEmailToAdd}
-                  onChange={(e) => setMemberEmailToAdd(e.target.value)}
-                />
-                <button className={styles.primaryButton} onClick={handleAddMember} disabled={memberAddLoading}>
-                  {memberAddLoading ? "Ajout..." : "Ajouter au groupe"}
-                </button>
+              <div className={styles.field}>
+                <span className={styles.fieldLabel}>Ajouter un membre</span>
+                <div className={styles.inlineForm}>
+                  <input
+                    type="email"
+                    className={styles.input}
+                    placeholder="email@cofidestsas.com"
+                    value={memberEmailToAdd}
+                    onChange={(e) => setMemberEmailToAdd(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !memberAddLoading) handleAddMember().catch(console.error); }}
+                    autoFocus
+                  />
+                  <button className={styles.primaryButton} onClick={handleAddMember} disabled={memberAddLoading}>
+                    {memberAddLoading ? "Ajout..." : "Ajouter au groupe"}
+                  </button>
+                </div>
               </div>
               {memberMessage && <p className={styles.feedbackMessage}>{memberMessage}</p>}
             </div>
-          )}
+
+            <div className={styles.modalFooter}>
+              <button className={styles.secondaryButton} onClick={closeMembersModal} disabled={membersBusy}>
+                Fermer
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

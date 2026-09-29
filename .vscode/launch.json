@@ -1,3 +1,6 @@
+// Configurations de débogage VS Code (Edge) pour le workbench SharePoint hébergé.
+// Remplacer {tenantDomain} par cofidestsas.sharepoint.com/sites/PoCL. Lancer "heft start" au préalable.
+
 {
   "version": "0.2.0",
   "configurations": [

@@ -1,3 +1,6 @@
+// Chaînes de texte localisées (anglais) issues du scaffold SPFx, utilisées par le volet de propriétés et
+// les messages d'environnement du web part. L'interface principale, elle, est écrite en français directement dans le composant.
+
 define([], function() {
   return {
     "PropertyPaneDescription": "Description",

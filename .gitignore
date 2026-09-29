@@ -1,3 +1,6 @@
+# Fichiers et dossiers exclus du dépôt git : dépendances (node_modules), sorties de build Heft
+# (lib, dist, temp, release, .heft), paquets .sppkg générés et fichiers générés depuis le SCSS (*.scss.ts).
+
 # Logs
 logs
 *.log
