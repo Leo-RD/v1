@@ -14,7 +14,7 @@ export const getSP = (context: WebPartContext) => {
 
 export const logAction = async (
   sp: ReturnType<typeof getSP>,
-  action: "Consultation" | "Ajout" | "Suppression",
+  action: "Consultation" | "Ajout" | "Suppression" | "Initialisation",
   bibliotheque: string,
   cible: string = "",
   details: string = ""

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { IPermissionsManagerMkIProps } from './IPermissionsManagerMkIProps';
 import { getSP, logAction } from '../pnpjsConfig';
 import styles from './PermissionsManagerMkI.module.scss';
+import logoCofidest from '../assets/icon-cofidest-group.png';
 import "@pnp/sp/webs";
 import "@pnp/sp/lists";
 import "@pnp/sp/security/list";
@@ -46,9 +47,19 @@ interface IGroupMember {
 
 type TargetType = "user" | "group";
 
-const DIRECTIONS = ["Direction Informatique", "Direction Financiere", "Direction RH"];
+// Les onglets affichent toutes les bibliothèques de documents visibles dont le titre commence par ce préfixe
+const DIRECTION_PREFIX = "Direction ";
+const TEMPLATE_DOCUMENT_LIBRARY = 101;
 const GROUPE_ASSOCIES = "Associés"; // À adapter au nom exact du groupe SharePoint
 const CONTROLE_TOTAL = "Contrôle total";
+const MESSAGE_GROUPE_PROTEGE = "Par sécurité, la suppression d'un groupe entier n'est pas autorisée ici.";
+// Caractères refusés par SharePoint dans le nom (et l'URL) d'une bibliothèque
+const CARACTERES_INTERDITS = /[~"#%&*:<>?/\\{|}]/;
+
+const estGroupe = (principalType: number): boolean =>
+  principalType === PRINCIPAL_TYPE_SHAREPOINT_GROUP ||
+  principalType === PRINCIPAL_TYPE_SECURITY_GROUP ||
+  principalType === PRINCIPAL_TYPE_DISTRIBUTION_LIST;
 
 const getPrincipalTypeLabel = (principalType: number): string => {
   switch (principalType) {
@@ -74,6 +85,8 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const [selectedRoleId, setSelectedRoleId] = useState<number | "">("");
   const [addLoading, setAddLoading] = useState<boolean>(false);
   const [addMessage, setAddMessage] = useState<string>("");
+  const [successMessage, setSuccessMessage] = useState<string>("");
+  const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
   const [removingId, setRemovingId] = useState<number | null>(null);
 
   const [membersGroup, setMembersGroup] = useState<IPermissionEntry | null>(null);
@@ -88,7 +101,31 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const [isAuthorized, setIsAuthorized] = useState<boolean>(false);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
+  const [directions, setDirections] = useState<string[]>([]);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
+  const [newDirectionName, setNewDirectionName] = useState<string>("");
+  const [createLoading, setCreateLoading] = useState<boolean>(false);
+  const [createMessage, setCreateMessage] = useState<string>("");
+
   const sp = getSP(props.context);
+
+  const loadDirections = async (): Promise<void> => {
+    try {
+      const libs: any[] = await sp.web.lists
+        .filter(`BaseTemplate eq ${TEMPLATE_DOCUMENT_LIBRARY} and Hidden eq false`)
+        .select("Title")();
+      setDirections(libs
+        .map((l) => l.Title as string)
+        .filter((t) => t.indexOf(DIRECTION_PREFIX) === 0)
+        .sort((a, b) => a.localeCompare(b, "fr")));
+    } catch (e) {
+      console.error("Impossible de charger la liste des directions", e);
+    }
+  };
+
+  useEffect(() => {
+    loadDirections().catch(console.error);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -121,10 +158,27 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     }).catch((e) => console.error("Impossible de charger les groupes SharePoint du site", e));
   }, []);
 
+  // Fermeture des modales avec la touche Échap (sauf pendant une opération en cours)
+  useEffect(() => {
+    if (!isAddModalOpen && !isCreateModalOpen) return;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.key !== "Escape") return;
+      if (isAddModalOpen && !addLoading) {
+        setIsAddModalOpen(false);
+        setAddMessage("");
+      }
+      if (isCreateModalOpen && !createLoading) {
+        setIsCreateModalOpen(false);
+        setCreateMessage("");
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [isAddModalOpen, addLoading, isCreateModalOpen, createLoading]);
+
   const loadPermissions = async (libraryName: string): Promise<void> => {
     setLoading(true);
     setError("");
-    setAddMessage("");
     setSelectedLibrary(libraryName);
     try {
       const roleAssignments: any[] = await sp.web.lists
@@ -150,6 +204,22 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     } finally {
       setLoading(false);
     }
+  };
+
+  const openAddModal = (): void => {
+    setTargetType("user");
+    setEmailToAdd("");
+    setSelectedGroupId("");
+    setSelectedRoleId("");
+    setAddMessage("");
+    setSuccessMessage("");
+    setIsAddModalOpen(true);
+  };
+
+  const closeAddModal = (): void => {
+    if (addLoading) return;
+    setIsAddModalOpen(false);
+    setAddMessage("");
   };
 
   const handleTargetTypeChange = (type: TargetType): void => {
@@ -187,12 +257,13 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
       }
 
       await sp.web.lists.getByTitle(selectedLibrary).roleAssignments.add(principalId, selectedRoleId as number);
-      setAddMessage(`Accès accordé à ${cible}.`);
       await logAction(sp, "Ajout", selectedLibrary, cible, `Niveau : ${roleDefs.find(r => r.Id === selectedRoleId)?.Name ?? ""}`);
       setEmailToAdd("");
       setSelectedGroupId("");
       setSelectedRoleId("");
+      setIsAddModalOpen(false);
       await loadPermissions(selectedLibrary);
+      setSuccessMessage(`Accès accordé à ${cible}.`);
     } catch (e: any) {
       console.error(e);
       setAddMessage(`Erreur lors de l'ajout : ${e?.message || "erreur inconnue, voir la console (F12)."}`);
@@ -214,6 +285,13 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     permissions.filter((p) => p.niveau.includes(CONTROLE_TOTAL)).length === 1;
 
   const handleRemovePermission = async (entry: IPermissionEntry): Promise<void> => {
+    // Garde-fou : le bouton est désactivé pour les groupes, mais on bloque aussi ici
+    // (type de la ligne, ou ID présent parmi les groupes SharePoint du site)
+    if (estGroupe(entry.principalType) || siteGroups.some((g) => g.Id === entry.principalId)) {
+      setError(MESSAGE_GROUPE_PROTEGE);
+      return;
+    }
+
     const estSeulControleTotal = estSeulTitulaireControleTotal(entry);
 
     const libelleCible = entry.principalType === PRINCIPAL_TYPE_SHAREPOINT_GROUP
@@ -230,6 +308,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
 
     setRemovingId(entry.principalId);
     setError("");
+    setSuccessMessage("");
     try {
       const list = sp.web.lists.getByTitle(selectedLibrary);
       for (const roleDefId of entry.roleDefIds) {
@@ -328,13 +407,90 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     }
   };
 
+  const openCreateModal = (): void => {
+    setNewDirectionName("");
+    setCreateMessage("");
+    setIsCreateModalOpen(true);
+  };
+
+  const closeCreateModal = (): void => {
+    if (createLoading) return;
+    setIsCreateModalOpen(false);
+    setCreateMessage("");
+  };
+
+  const handleCreateDirection = async (): Promise<void> => {
+    const saisie = newDirectionName.trim();
+    if (!saisie) {
+      setCreateMessage("Renseignez le nom de la nouvelle direction.");
+      return;
+    }
+    if (CARACTERES_INTERDITS.test(saisie)) {
+      setCreateMessage("Le nom ne peut pas contenir les caractères suivants : ~ \" # % & * : < > ? / \\ { | }");
+      return;
+    }
+    // Préfixe automatique pour que la bibliothèque apparaisse dans les onglets
+    const nom = saisie.toLowerCase().indexOf(DIRECTION_PREFIX.toLowerCase()) === 0
+      ? DIRECTION_PREFIX + saisie.substring(DIRECTION_PREFIX.length)
+      : DIRECTION_PREFIX + saisie;
+    if (directions.some((d) => d.toLowerCase() === nom.toLowerCase())) {
+      setCreateMessage(`La bibliothèque "${nom}" existe déjà.`);
+      return;
+    }
+
+    setCreateLoading(true);
+    setCreateMessage("");
+    let bibliothequeCreee = false;
+    try {
+      const info = await sp.web.lists.add(nom, "", TEMPLATE_DOCUMENT_LIBRARY);
+      bibliothequeCreee = true;
+      // Étape obligatoire : sans rupture d'héritage, roleAssignments.add()/remove() renvoient une erreur 400.
+      // Sans copie des permissions, SharePoint attribue le Contrôle total au créateur.
+      await sp.web.lists.getById(info.Id).breakRoleInheritance(false);
+      await logAction(sp, "Initialisation", nom, "", "Bibliothèque de direction créée, héritage des permissions rompu");
+
+      setIsCreateModalOpen(false);
+      await loadDirections();
+      closeMembers();
+      await loadPermissions(nom);
+      setSuccessMessage(`La bibliothèque "${nom}" a été créée.`);
+    } catch (e: any) {
+      console.error(e);
+      const detail = e?.message || "erreur inconnue, voir la console (F12).";
+      setCreateMessage(bibliothequeCreee
+        ? `La bibliothèque "${nom}" a été créée, mais la rupture de l'héritage des permissions a échoué : ${detail} Contactez l'IT avant d'y ajouter des accès.`
+        : `Erreur lors de la création de la bibliothèque : ${detail}`);
+      if (bibliothequeCreee) {
+        await loadDirections();
+      }
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  const masthead = (
+    <div className={styles.masthead}>
+      <img className={styles.logo} src={logoCofidest} alt="Cofidest" />
+      <div>
+        <h1 className={styles.title}>Permissions Manager</h1>
+        <p className={styles.subtitle}>Gestion des accès aux bibliothèques par direction</p>
+      </div>
+    </div>
+  );
+
   if (!authChecked) {
-    return <div className={styles.container}><p className={styles.statusText}>Vérification des autorisations...</p></div>;
+    return (
+      <div className={styles.container}>
+        {masthead}
+        <p className={styles.statusText}>Vérification des autorisations...</p>
+      </div>
+    );
   }
 
   if (!isAuthorized) {
     return (
       <div className={styles.container}>
+        {masthead}
         <p className={styles.unauthorized}>Vous n'avez pas accès à cet outil. Contactez la direction informatique si vous pensez qu'il s'agit d'une erreur.</p>
       </div>
     );
@@ -342,72 +498,89 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
 
   return (
     <div className={styles.container}>
-      <div className={styles.masthead}>
-        <h1 className={styles.title}>Permissions Manager</h1>
-        <p className={styles.subtitle}>Gestion des accès aux bibliothèques par direction</p>
-      </div>
+      {masthead}
 
       <div className={styles.tabs}>
-        {DIRECTIONS.map((dir) => (
+        {directions.map((dir) => (
           <button
             key={dir}
             className={dir === selectedLibrary ? `${styles.tab} ${styles.tabActive}` : styles.tab}
-            onClick={() => { closeMembers(); loadPermissions(dir).catch(console.error); }}
+            onClick={() => { closeMembers(); setSuccessMessage(""); loadPermissions(dir).catch(console.error); }}
           >
             {dir}
           </button>
         ))}
+        <button className={`${styles.tab} ${styles.newDirectionTab}`} onClick={openCreateModal}>
+          <span className={styles.plusIcon} aria-hidden="true">+</span>
+          Créer une nouvelle Direction
+        </button>
       </div>
+
+      {!selectedLibrary && !loading && (
+        <p className={styles.emptyState}>Sélectionnez une direction pour afficher les accès à sa bibliothèque.</p>
+      )}
 
       {loading && <p className={styles.statusText}>Chargement...</p>}
       {error && <p className={styles.errorBanner}>{error}</p>}
 
       {!loading && !error && selectedLibrary && (
         <div>
-          <h2 className={styles.libraryTitle}>{selectedLibrary}</h2>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Nom</th>
-                <th>Type</th>
-                <th>Niveau</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {permissions.map((p) => (
-                <tr key={p.principalId}>
-                  <td>{p.nom}</td>
-                  <td><span className={styles.typeTag}>{p.type}</span></td>
-                  <td className={p.niveau.includes(CONTROLE_TOTAL) ? styles.levelFullControl : undefined}>{p.niveau}</td>
-                  <td>
-                    <div className={styles.rowActions}>
-                      {p.principalType === PRINCIPAL_TYPE_SHAREPOINT_GROUP && (
-                        <button
-                          className={membersGroup?.principalId === p.principalId ? `${styles.secondaryButton} ${styles.secondaryButtonActive}` : styles.secondaryButton}
-                          onClick={() => openMembers(p)}
-                        >
-                          Membres
-                        </button>
-                      )}
-                      <button
-                        className={styles.removeButton}
-                        onClick={() => handleRemovePermission(p)}
-                        disabled={removingId === p.principalId}
-                      >
-                        {removingId === p.principalId ? "..." : "Retirer"}
-                      </button>
-                    </div>
-                  </td>
+          <div className={styles.toolbar}>
+            <h2 className={styles.libraryTitle}>{selectedLibrary}</h2>
+            <button className={`${styles.primaryButton} ${styles.addAccessButton}`} onClick={openAddModal}>
+              <span className={styles.plusIcon} aria-hidden="true">+</span>
+              Ajouter un accès
+            </button>
+          </div>
+
+          {successMessage && <p className={styles.successBanner}>{successMessage}</p>}
+
+          <div className={styles.tableWrapper}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Nom</th>
+                  <th>Type</th>
+                  <th>Niveau</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {permissions.map((p) => (
+                  <tr key={p.principalId}>
+                    <td className={styles.nameCell}>{p.nom}</td>
+                    <td><span className={styles.typeTag}>{p.type}</span></td>
+                    <td className={p.niveau.includes(CONTROLE_TOTAL) ? styles.levelFullControl : undefined}>{p.niveau}</td>
+                    <td>
+                      <div className={styles.rowActions}>
+                        {p.principalType === PRINCIPAL_TYPE_SHAREPOINT_GROUP && (
+                          <button
+                            className={membersGroup?.principalId === p.principalId ? `${styles.secondaryButton} ${styles.secondaryButtonActive}` : styles.secondaryButton}
+                            onClick={() => openMembers(p)}
+                          >
+                            Membres
+                          </button>
+                        )}
+                        <button
+                          className={styles.removeButton}
+                          onClick={() => handleRemovePermission(p)}
+                          disabled={estGroupe(p.principalType) || removingId === p.principalId}
+                          title={estGroupe(p.principalType) ? MESSAGE_GROUPE_PROTEGE : undefined}
+                        >
+                          {removingId === p.principalId ? "..." : "Retirer"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {membersGroup && (
-            <div className={`${styles.addPanel} ${styles.membersPanel}`}>
+            <div className={styles.membersPanel}>
               <div className={styles.panelHeader}>
-                <h3 className={styles.addPanelTitle}>Membres du groupe « {membersGroup.nom} »</h3>
+                <h3 className={styles.panelTitle}>Membres du groupe « {membersGroup.nom} »</h3>
                 <button className={styles.secondaryButton} onClick={closeMembers}>Fermer</button>
               </div>
 
@@ -416,37 +589,41 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
               ) : members.length === 0 ? (
                 <p className={styles.statusText}>Ce groupe ne contient aucun membre.</p>
               ) : (
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th>Nom</th>
-                      <th>Email</th>
-                      <th>Type</th>
-                      <th />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {members.map((m) => (
-                      <tr key={m.Id}>
-                        <td>{m.Title}</td>
-                        <td>{m.Email}</td>
-                        <td><span className={styles.typeTag}>{getPrincipalTypeLabel(m.PrincipalType)}</span></td>
-                        <td>
-                          <button
-                            className={styles.removeButton}
-                            onClick={() => handleRemoveMember(m)}
-                            disabled={removingMemberId === m.Id}
-                          >
-                            {removingMemberId === m.Id ? "..." : "Retirer"}
-                          </button>
-                        </td>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th>Nom</th>
+                        <th>Email</th>
+                        <th>Type</th>
+                        <th />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {members.map((m) => (
+                        <tr key={m.Id}>
+                          <td className={styles.nameCell}>{m.Title}</td>
+                          <td>{m.Email}</td>
+                          <td><span className={styles.typeTag}>{getPrincipalTypeLabel(m.PrincipalType)}</span></td>
+                          <td>
+                            <div className={styles.rowActions}>
+                              <button
+                                className={styles.removeButton}
+                                onClick={() => handleRemoveMember(m)}
+                                disabled={removingMemberId === m.Id}
+                              >
+                                {removingMemberId === m.Id ? "..." : "Retirer"}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
 
-              <div className={styles.addForm}>
+              <div className={styles.inlineForm}>
                 <input
                   type="email"
                   className={styles.input}
@@ -461,67 +638,148 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
               {memberMessage && <p className={styles.feedbackMessage}>{memberMessage}</p>}
             </div>
           )}
+        </div>
+      )}
 
-          <div className={styles.addPanel}>
-            <h3 className={styles.addPanelTitle}>Ajouter un accès</h3>
-            <div className={styles.targetSwitch} role="radiogroup" aria-label="Type de cible">
-              <label>
-                <input
-                  type="radio"
-                  name="targetType"
-                  value="user"
-                  checked={targetType === "user"}
-                  onChange={() => handleTargetTypeChange("user")}
-                />
-                Utilisateur
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="targetType"
-                  value="group"
-                  checked={targetType === "group"}
-                  onChange={() => handleTargetTypeChange("group")}
-                />
-                Groupe SharePoint
-              </label>
-            </div>
-            <div className={styles.addForm}>
-              {targetType === "user" ? (
-                <input
-                  type="email"
-                  className={styles.input}
-                  placeholder="email@cofidestsas.com"
-                  value={emailToAdd}
-                  onChange={(e) => setEmailToAdd(e.target.value)}
-                />
-              ) : (
-                <select
-                  className={styles.select}
-                  value={selectedGroupId}
-                  onChange={(e) => setSelectedGroupId(e.target.value ? Number(e.target.value) : "")}
-                >
-                  <option value="">Groupe SharePoint</option>
-                  {siteGroups.map((g) => (
-                    <option key={g.Id} value={g.Id}>{g.Title}</option>
-                  ))}
-                </select>
-              )}
-              <select
-                className={styles.select}
-                value={selectedRoleId}
-                onChange={(e) => setSelectedRoleId(e.target.value ? Number(e.target.value) : "")}
-              >
-                <option value="">Niveau d'accès</option>
-                {roleDefs.map((r) => (
-                  <option key={r.Id} value={r.Id}>{r.Name}</option>
-                ))}
-              </select>
-              <button className={styles.primaryButton} onClick={handleAddPermission} disabled={addLoading}>
-                {addLoading ? "Ajout..." : "Ajouter"}
+      {isAddModalOpen && (
+        <div className={styles.modalBackdrop} onClick={closeAddModal}>
+          <div
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pm-add-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <h3 id="pm-add-modal-title" className={styles.modalTitle}>Ajouter un accès</h3>
+                <p className={styles.modalSubtitle}>{selectedLibrary}</p>
+              </div>
+              <button className={styles.closeButton} onClick={closeAddModal} disabled={addLoading} aria-label="Fermer">
+                ×
               </button>
             </div>
-            {addMessage && <p className={styles.feedbackMessage}>{addMessage}</p>}
+
+            <div className={styles.modalBody}>
+              <div className={styles.segmented} role="radiogroup" aria-label="Type de cible">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={targetType === "user"}
+                  className={targetType === "user" ? `${styles.segment} ${styles.segmentActive}` : styles.segment}
+                  onClick={() => handleTargetTypeChange("user")}
+                >
+                  Utilisateur
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={targetType === "group"}
+                  className={targetType === "group" ? `${styles.segment} ${styles.segmentActive}` : styles.segment}
+                  onClick={() => handleTargetTypeChange("group")}
+                >
+                  Groupe SharePoint
+                </button>
+              </div>
+
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>{targetType === "user" ? "Email de l'utilisateur" : "Groupe SharePoint"}</span>
+                {targetType === "user" ? (
+                  <input
+                    type="email"
+                    className={styles.input}
+                    placeholder="email@cofidestsas.com"
+                    value={emailToAdd}
+                    onChange={(e) => setEmailToAdd(e.target.value)}
+                    autoFocus
+                  />
+                ) : (
+                  <select
+                    className={styles.select}
+                    value={selectedGroupId}
+                    onChange={(e) => setSelectedGroupId(e.target.value ? Number(e.target.value) : "")}
+                  >
+                    <option value="">Choisir un groupe</option>
+                    {siteGroups.map((g) => (
+                      <option key={g.Id} value={g.Id}>{g.Title}</option>
+                    ))}
+                  </select>
+                )}
+              </label>
+
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Niveau d'accès</span>
+                <select
+                  className={styles.select}
+                  value={selectedRoleId}
+                  onChange={(e) => setSelectedRoleId(e.target.value ? Number(e.target.value) : "")}
+                >
+                  <option value="">Choisir un niveau</option>
+                  {roleDefs.map((r) => (
+                    <option key={r.Id} value={r.Id}>{r.Name}</option>
+                  ))}
+                </select>
+              </label>
+
+              {addMessage && <p className={styles.modalError}>{addMessage}</p>}
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button className={styles.secondaryButton} onClick={closeAddModal} disabled={addLoading}>
+                Annuler
+              </button>
+              <button className={styles.primaryButton} onClick={handleAddPermission} disabled={addLoading}>
+                {addLoading ? "Ajout..." : "Ajouter l'accès"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isCreateModalOpen && (
+        <div className={styles.modalBackdrop} onClick={closeCreateModal}>
+          <div
+            className={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pm-create-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <h3 id="pm-create-modal-title" className={styles.modalTitle}>Créer une nouvelle Direction</h3>
+                <p className={styles.modalSubtitle}>Nouvelle bibliothèque de documents, aux permissions indépendantes du site</p>
+              </div>
+              <button className={styles.closeButton} onClick={closeCreateModal} disabled={createLoading} aria-label="Fermer">
+                ×
+              </button>
+            </div>
+
+            <div className={styles.modalBody}>
+              <label className={styles.field}>
+                <span className={styles.fieldLabel}>Nom de la direction</span>
+                <input
+                  type="text"
+                  className={styles.input}
+                  placeholder="Direction Juridique"
+                  value={newDirectionName}
+                  onChange={(e) => setNewDirectionName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter" && !createLoading) handleCreateDirection().catch(console.error); }}
+                  autoFocus
+                />
+              </label>
+
+              {createMessage && <p className={styles.modalError}>{createMessage}</p>}
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button className={styles.secondaryButton} onClick={closeCreateModal} disabled={createLoading}>
+                Annuler
+              </button>
+              <button className={styles.primaryButton} onClick={handleCreateDirection} disabled={createLoading}>
+                {createLoading ? "Création..." : "Créer la bibliothèque"}
+              </button>
+            </div>
           </div>
         </div>
       )}
