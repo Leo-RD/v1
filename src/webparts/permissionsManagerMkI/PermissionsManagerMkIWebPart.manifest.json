@@ -1,6 +1,6 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/spfx/client-side-web-part-manifest.schema.json",
-  "id": "ffaa0b7a-1807-4de2-a3ca-77f17b3594ce",
+  "id": "fb73eac5-62a1-4d1e-abe5-f443ae31dcf0",
   "alias": "PermissionsManagerMkIWebPart",
   "componentType": "WebPart",
 
@@ -15,7 +15,7 @@
   "preconfiguredEntries": [{
     "groupId": "5c03119e-3074-46fd-976b-c60198311f70", 
     "group": { "default": "Advanced" },
-    "title": { "default": "PermissionsManagerMkI" },
+    "title": { "default": "PermissionsManagerMkII" },
     "description": { "default": "PermissionsManagerMkI description" },
     "officeFabricIconFontName": "Page",
     "properties": {

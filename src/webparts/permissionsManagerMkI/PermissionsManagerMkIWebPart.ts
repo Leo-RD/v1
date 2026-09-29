@@ -1,7 +1,3 @@
-// Point d'entrée du web part SPFx (classe chargée par SharePoint).
-// Rôle : monter le composant React principal (PermissionsManagerMkI) en lui passant le contexte SPFx,
-// gérer le thème SharePoint (clair/sombre) et le volet de propriétés. Toute la logique métier est dans components/.
-
 import * as React from 'react';
 import * as ReactDom from 'react-dom';
 import { Version } from '@microsoft/sp-core-library';

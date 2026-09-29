@@ -2,7 +2,7 @@
   "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
   "solution": {
     "name": "permissions-manager-mk-i-client-side-solution",
-    "id": "99c3aaa5-499a-4564-b088-4ff952c5fa2d",
+    "id": "16602fc4-57a1-4f62-8da7-4fc2fb1e4ffb",
     "version": "1.0.1.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
@@ -16,10 +16,10 @@
     },
     "metadata": {
       "shortDescription": {
-        "default": "PermissionsManagerMkI description"
+        "default": "PermissionsManagerMkII description"
       },
       "longDescription": {
-        "default": "PermissionsManagerMkI description"
+        "default": "PermissionsManagerMkII long description"
       },
       "screenshotPaths": [],
       "videoUrl": "",
@@ -29,12 +29,12 @@
       {
         "title": "permissions-manager-mk-i Feature",
         "description": "The feature that activates elements of the permissions-manager-mk-i solution.",
-        "id": "ff2eb6a9-e441-4fc6-b940-fca1014a4c5b",
+        "id": "e6b91759-b0ed-42ea-9f17-51ed488bb585",
         "version": "1.0.1.0"
       }
     ]
   },
   "paths": {
-    "zippedPackage": "solution/permissions-manager-mk-1dot2.sppkg"
+    "zippedPackage": "solution/permissions-manager-mk-2.sppkg"
   }
 }
