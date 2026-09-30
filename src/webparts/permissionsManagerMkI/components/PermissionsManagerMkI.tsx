@@ -7,6 +7,8 @@
 //   · Vue Détail (selectedLibrary renseigné) : tableau des permissions de la direction et bouton de retour.
 // - Pour la direction choisie : affiche les permissions (utilisateurs et groupes), permet d'en ajouter,
 //   d'en supprimer, de gérer les membres des groupes SharePoint et de créer une nouvelle direction.
+// - Bouton "Comment ça marche ?" (en-tête) : fenêtre d'aide pour les non-initiés (mode d'emploi,
+//   différence Utilisateur / Groupe, niveaux d'accès, sécurités).
 // - Garde-fou : impossible de retirer le dernier titulaire du niveau "Contrôle total".
 // - Chaque action est journalisée via logAction (voir pnpjsConfig.ts).
 // Prérequis : l'héritage des permissions de la bibliothèque doit avoir été rompu par l'IT (sinon erreur 400).
@@ -69,6 +71,16 @@ const MESSAGE_GROUPE_PROTEGE = "Par sécurité, la suppression d'un groupe entie
 // Caractères refusés par SharePoint dans le nom (et l'URL) d'une bibliothèque
 const CARACTERES_INTERDITS = /[~"#%&*:<>?/\\{|}]/;
 
+// Contenu de la fenêtre d'aide : niveaux d'accès SharePoint standards, expliqués sans jargon
+const NIVEAUX_AIDE: { nom: string; description: string }[] = [
+  { nom: "Lecture", description: "Peut ouvrir, lire et télécharger les documents. Ne peut rien modifier ni supprimer." },
+  { nom: "Afficher uniquement", description: "Peut lire les documents à l'écran, sans pouvoir les télécharger." },
+  { nom: "Collaboration", description: "Peut lire, ajouter, modifier et supprimer des documents." },
+  { nom: "Modification", description: "Comme « Collaboration », et peut en plus organiser la bibliothèque (dossiers, colonnes, affichages)." },
+  { nom: "Conception", description: "Peut modifier les documents et l'apparence de la bibliothèque. Réservé aux besoins techniques." },
+  { nom: CONTROLE_TOTAL, description: "Peut tout faire, y compris décider qui a accès. À réserver aux associés." }
+];
+
 const estGroupe = (principalType: number): boolean =>
   principalType === PRINCIPAL_TYPE_SHAREPOINT_GROUP ||
   principalType === PRINCIPAL_TYPE_SECURITY_GROUP ||
@@ -120,6 +132,8 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const [newDirectionName, setNewDirectionName] = useState<string>("");
   const [createLoading, setCreateLoading] = useState<boolean>(false);
   const [createMessage, setCreateMessage] = useState<string>("");
+
+  const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
 
   const sp = getSP(props.context);
 
@@ -176,9 +190,14 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
 
   // Fermeture des modales avec la touche Échap (sauf pendant une opération en cours)
   useEffect(() => {
-    if (!isAddModalOpen && !isCreateModalOpen && !membersGroup) return;
+    if (!isAddModalOpen && !isCreateModalOpen && !membersGroup && !isHelpOpen) return;
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key !== "Escape") return;
+      // La fenêtre d'aide s'affiche par-dessus les autres modales : Échap ne ferme qu'elle
+      if (isHelpOpen) {
+        setIsHelpOpen(false);
+        return;
+      }
       if (membersGroup && !memberAddLoading && removingMemberId === null) {
         setMembersGroup(null);
         setMembers([]);
@@ -196,7 +215,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [isAddModalOpen, addLoading, isCreateModalOpen, createLoading, membersGroup, memberAddLoading, removingMemberId]);
+  }, [isAddModalOpen, addLoading, isCreateModalOpen, createLoading, membersGroup, memberAddLoading, removingMemberId, isHelpOpen]);
 
   // Identifiant du dernier chargement lancé : un retour à l'accueil ou l'ouverture d'une autre direction
   // pendant un chargement rend la réponse précédente obsolète, elle est alors ignorée.
@@ -537,6 +556,12 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
         <h1 className={styles.title}>Gestionnaire de Permissions</h1>
         <p className={styles.subtitle}>Gestion des accès aux bibliothèques par direction</p>
       </div>
+      {isAuthorized && (
+        <button type="button" className={styles.helpButton} onClick={() => setIsHelpOpen(true)}>
+          <span className={styles.helpIcon} aria-hidden="true">?</span>
+          Comment ça marche ?
+        </button>
+      )}
     </header>
   );
 
@@ -907,6 +932,110 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
               </button>
               <button className={styles.primaryButton} onClick={handleCreateDirection} disabled={createLoading}>
                 {createLoading ? "Création..." : "Créer la bibliothèque"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isHelpOpen && (
+        <div className={styles.modalBackdrop} onClick={() => setIsHelpOpen(false)}>
+          <div
+            className={`${styles.modal} ${styles.modalWide}`}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pm-help-modal-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={styles.modalHeader}>
+              <div>
+                <h3 id="pm-help-modal-title" className={styles.modalTitle}>Comment ça marche ?</h3>
+                <p className={styles.modalSubtitle}>Guide rapide du Gestionnaire de Permissions</p>
+              </div>
+              <button className={styles.closeButton} onClick={() => setIsHelpOpen(false)} aria-label="Fermer">
+                ×
+              </button>
+            </div>
+
+            <div className={styles.modalBody}>
+              <section className={styles.helpSection}>
+                <h4 className={styles.helpTitle}>À quoi sert cet outil ?</h4>
+                <p className={styles.helpText}>
+                  Chaque direction du cabinet possède son propre espace de documents (une « bibliothèque »).
+                  Cet outil vous permet de choisir <strong>qui peut voir ou modifier</strong> les documents de chaque direction,
+                  simplement, sans passer par les réglages de SharePoint.
+                </p>
+              </section>
+
+              <section className={styles.helpSection}>
+                <h4 className={styles.helpTitle}>Mode d’emploi en 4 étapes</h4>
+                <ol className={styles.helpList}>
+                  <li><strong>Cliquez sur la carte d’une direction</strong> sur la page d’accueil.</li>
+                  <li>Un tableau affiche <strong>toutes les personnes et tous les groupes</strong> qui ont accès à ses documents, avec leur niveau d’accès.</li>
+                  <li>Pour donner un accès, cliquez sur <strong>« + Ajouter un accès »</strong>, indiquez à qui, puis choisissez le niveau.</li>
+                  <li>Pour enlever un accès, cliquez sur <strong>« Retirer »</strong> sur la ligne concernée, puis confirmez.</li>
+                </ol>
+                <p className={styles.helpNote}>
+                  Chaque consultation, ajout ou retrait est enregistré, et les associés en sont informés par email.
+                </p>
+              </section>
+
+              <section className={styles.helpSection}>
+                <h4 className={styles.helpTitle}>Utilisateur ou Groupe : quelle différence ?</h4>
+                <div className={styles.helpCompare}>
+                  <div className={styles.helpCard}>
+                    <span className={styles.typeTag}>Utilisateur</span>
+                    <p className={styles.helpText}><strong>Une seule personne</strong>, reconnue par son adresse email.</p>
+                    <p className={styles.helpText}>L’accès ne concerne qu’elle, et uniquement pour cette direction.</p>
+                    <p className={styles.helpExample}>Exemple : donner l’accès à prenom.nom@cofidestsas.com</p>
+                  </div>
+                  <div className={styles.helpCard}>
+                    <span className={styles.typeTag}>Groupe</span>
+                    <p className={styles.helpText}><strong>Une liste de personnes</strong> réunies sous un même nom (par exemple « {GROUPE_ASSOCIES} »).</p>
+                    <p className={styles.helpText}>
+                      Donner un accès au groupe le donne à <strong>tous ses membres</strong>. Le bouton « Membres » permet de voir
+                      qui en fait partie, d’y ajouter ou d’en retirer quelqu’un.
+                    </p>
+                    <p className={styles.helpExample}>Exemple : donner l’accès au groupe « Comptabilité »</p>
+                  </div>
+                </div>
+                <p className={styles.helpWarning}>
+                  <strong>Attention :</strong> un groupe est commun à toutes les directions. Ajouter une personne à un groupe
+                  lui donne aussi accès à <strong>toutes les autres directions</strong> où ce groupe a déjà accès.
+                  En cas de doute, ajoutez plutôt la personne en tant qu’Utilisateur.
+                </p>
+              </section>
+
+              <section className={styles.helpSection}>
+                <h4 className={styles.helpTitle}>Les niveaux d’accès</h4>
+                <dl className={styles.helpLevels}>
+                  {NIVEAUX_AIDE.map((n) => (
+                    <div key={n.nom} className={styles.helpLevel}>
+                      <dt className={n.nom === CONTROLE_TOTAL ? styles.levelFullControl : undefined}>{n.nom}</dt>
+                      <dd>{n.description}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <p className={styles.helpNote}>
+                  Conseil : donnez toujours le niveau le plus faible suffisant. Pour simplement consulter des documents, choisissez « Lecture ».
+                  Le niveau « Accès limité », parfois visible dans le tableau, est ajouté automatiquement par SharePoint : vous pouvez l’ignorer.
+                </p>
+              </section>
+
+              <section className={styles.helpSection}>
+                <h4 className={styles.helpTitle}>Les sécurités intégrées</h4>
+                <ul className={styles.helpList}>
+                  <li>Une confirmation vous est toujours demandée avant de retirer un accès.</li>
+                  <li>Il est impossible de retirer le dernier titulaire du « {CONTROLE_TOTAL} » d’une direction.</li>
+                  <li>Un groupe entier ne peut pas être retiré depuis cet outil (seuls ses membres peuvent l’être).</li>
+                  <li>Vous ne pouvez pas vous retirer vous-même du groupe « {GROUPE_ASSOCIES} ».</li>
+                </ul>
+              </section>
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button className={styles.primaryButton} onClick={() => setIsHelpOpen(false)}>
+                J’ai compris
               </button>
             </div>
           </div>

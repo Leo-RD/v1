@@ -137,6 +137,52 @@
   margin: 0;
 }
 
+// Bouton d'aide, calé en haut à droite de l'en-tête : libellé explicite pour les utilisateurs non initiés
+.helpButton {
+  @include glass(0.6, 12px);
+  align-self: flex-start;
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 16px 8px 8px;
+  border-radius: 999px;
+  color: var(--pm-accent);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.helpButton:hover {
+  background: var(--pm-accent);
+  border-color: var(--pm-accent);
+  color: #FFFFFF;
+  box-shadow: 0 6px 16px var(--pm-accent-shadow);
+
+  .helpIcon {
+    background: #FFFFFF;
+    color: var(--pm-accent);
+  }
+}
+
+.helpIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--pm-accent);
+  color: #FFFFFF;
+  font-family: var(--pm-font-heading);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
 // ---------- Vues (Accueil / Détail) ----------
 
 .view {
@@ -467,7 +513,8 @@
 .closeButton:focus-visible,
 .segment:focus-visible,
 .directionCard:focus-visible,
-.backButton:focus-visible {
+.backButton:focus-visible,
+.helpButton:focus-visible {
   outline: 2px solid var(--pm-accent);
   outline-offset: 2px;
 }
@@ -755,6 +802,115 @@
   }
 }
 
+// ---------- Fenêtre d'aide ----------
+// Textes un peu plus grands que le reste de l'outil : public non initié, lecture confortable
+
+.helpSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  & + & {
+    padding-top: 16px;
+    border-top: 1px solid var(--pm-grey-soft);
+  }
+}
+
+.helpTitle {
+  font-family: var(--pm-font-heading);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--pm-accent);
+  margin: 0;
+}
+
+.helpText {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.helpList {
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 0;
+  padding-left: 22px;
+
+  li + li {
+    margin-top: 4px;
+  }
+}
+
+.helpNote {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--pm-ink-muted);
+  margin: 0;
+}
+
+.helpCompare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.helpCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: var(--pm-radius);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--pm-grey-soft);
+}
+
+.helpExample {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--pm-ink-muted);
+  margin: auto 0 0 0;
+}
+
+.helpWarning {
+  font-size: 14px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: var(--pm-radius);
+  border-left: 4px solid var(--pm-accent);
+  background: var(--pm-accent-soft);
+}
+
+.helpLevels {
+  margin: 0;
+  border-radius: var(--pm-radius);
+  border: 1px solid var(--pm-grey-soft);
+  background: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+}
+
+.helpLevel {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  line-height: 1.45;
+
+  & + & {
+    border-top: 1px solid var(--pm-grey-soft);
+  }
+
+  dt {
+    font-weight: 700;
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
 @keyframes pmFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -776,6 +932,7 @@
   .masthead,
   .directionCard,
   .backButton,
+  .helpButton,
   .unauthorized,
   .tableWrapper {
     background: rgba(255, 255, 255, 0.92);
@@ -839,6 +996,20 @@
 
   .toolbar .addAccessButton {
     width: 100%;
+  }
+
+  // En-tête : le bouton d'aide passe sous le titre
+  .masthead {
+    flex-wrap: wrap;
+  }
+
+  .helpButton {
+    margin-left: 0;
+  }
+
+  .helpLevel {
+    grid-template-columns: 1fr;
+    gap: 2px;
   }
 
   .modalFooter {
