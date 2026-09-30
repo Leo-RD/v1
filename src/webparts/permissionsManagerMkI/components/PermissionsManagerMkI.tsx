@@ -2,6 +2,9 @@
 // Fonctionnement :
 // - Vérifie que l'utilisateur appartient au groupe SharePoint "Associés" ; sinon l'outil n'est pas affiché.
 // - Liste les "directions" = bibliothèques de documents dont le titre commence par "Direction ".
+// - Navigation en deux vues (V3) :
+//   · Vue Accueil (aucune direction sélectionnée) : grille de cartes, une par direction, + carte de création ;
+//   · Vue Détail (selectedLibrary renseigné) : tableau des permissions de la direction et bouton de retour.
 // - Pour la direction choisie : affiche les permissions (utilisateurs et groupes), permet d'en ajouter,
 //   d'en supprimer, de gérer les membres des groupes SharePoint et de créer une nouvelle direction.
 // - Garde-fou : impossible de retirer le dernier titulaire du niveau "Contrôle total".
@@ -9,7 +12,7 @@
 // Prérequis : l'héritage des permissions de la bibliothèque doit avoir été rompu par l'IT (sinon erreur 400).
 
 import * as React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { IPermissionsManagerMkIProps } from './IPermissionsManagerMkIProps';
 import { getSP, logAction } from '../pnpjsConfig';
 import styles from './PermissionsManagerMkI.module.scss';
@@ -57,7 +60,7 @@ interface IGroupMember {
 
 type TargetType = "user" | "group";
 
-// Les onglets affichent toutes les bibliothèques de documents visibles dont le titre commence par ce préfixe
+// La vue Accueil affiche une carte pour chacune des bibliothèques de documents visibles dont le titre commence par ce préfixe
 const DIRECTION_PREFIX = "Direction ";
 const TEMPLATE_DOCUMENT_LIBRARY = 101;
 const GROUPE_ASSOCIES = "Associés"; // À adapter au nom exact du groupe SharePoint
@@ -112,6 +115,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
 
   const [directions, setDirections] = useState<string[]>([]);
+  const [directionsLoaded, setDirectionsLoaded] = useState<boolean>(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState<boolean>(false);
   const [newDirectionName, setNewDirectionName] = useState<string>("");
   const [createLoading, setCreateLoading] = useState<boolean>(false);
@@ -130,6 +134,8 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
         .sort((a, b) => a.localeCompare(b, "fr")));
     } catch (e) {
       console.error("Impossible de charger la liste des directions", e);
+    } finally {
+      setDirectionsLoaded(true);
     }
   };
 
@@ -192,7 +198,12 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [isAddModalOpen, addLoading, isCreateModalOpen, createLoading, membersGroup, memberAddLoading, removingMemberId]);
 
+  // Identifiant du dernier chargement lancé : un retour à l'accueil ou l'ouverture d'une autre direction
+  // pendant un chargement rend la réponse précédente obsolète, elle est alors ignorée.
+  const permissionsRequestRef = useRef<number>(0);
+
   const loadPermissions = async (libraryName: string): Promise<void> => {
+    const requestId = ++permissionsRequestRef.current;
     setLoading(true);
     setError("");
     setSelectedLibrary(libraryName);
@@ -200,6 +211,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
       const roleAssignments: any[] = await sp.web.lists
         .getByTitle(libraryName)
         .roleAssignments.expand("Member", "RoleDefinitionBindings")();
+      if (requestId !== permissionsRequestRef.current) return;
 
       const mapped: IPermissionEntry[] = roleAssignments.map((ra) => {
         const principalType: number = ra.Member?.PrincipalType ?? 0;
@@ -216,9 +228,10 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
       await logAction(sp, "Consultation", libraryName);
     } catch (e) {
       console.error(e);
+      if (requestId !== permissionsRequestRef.current) return;
       setError("Impossible de récupérer les permissions. Vérifiez le nom exact de la bibliothèque et vos droits d'accès.");
     } finally {
-      setLoading(false);
+      if (requestId === permissionsRequestRef.current) setLoading(false);
     }
   };
 
@@ -453,7 +466,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
       setCreateMessage("Le nom ne peut pas contenir les caractères suivants : ~ \" # % & * : < > ? / \\ { | }");
       return;
     }
-    // Préfixe automatique pour que la bibliothèque apparaisse dans les onglets
+    // Préfixe automatique pour que la bibliothèque apparaisse parmi les cartes de l'accueil
     const nom = saisie.toLowerCase().indexOf(DIRECTION_PREFIX.toLowerCase()) === 0
       ? DIRECTION_PREFIX + saisie.substring(DIRECTION_PREFIX.length)
       : DIRECTION_PREFIX + saisie;
@@ -492,14 +505,39 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     }
   };
 
+  // Vue Accueil -> Vue Détail
+  const openDirection = (libraryName: string): void => {
+    closeMembers();
+    setSuccessMessage("");
+    loadPermissions(libraryName).catch(console.error);
+  };
+
+  // Vue Détail -> Vue Accueil : on vide la sélection et on invalide un éventuel chargement en cours.
+  // Bloqué pendant un retrait, car celui-ci recharge ensuite les permissions de la direction.
+  const backToHome = (): void => {
+    if (removingId !== null) return;
+    permissionsRequestRef.current++;
+    closeMembers();
+    setIsAddModalOpen(false);
+    setSelectedLibrary("");
+    setPermissions([]);
+    setLoading(false);
+    setError("");
+    setSuccessMessage("");
+  };
+
+  // "Direction Juridique" -> "Juridique" (libellé affiché sur les cartes)
+  const libelleDirection = (dir: string): string =>
+    dir.substring(DIRECTION_PREFIX.length).trim() || dir;
+
   const masthead = (
-    <div className={styles.masthead}>
+    <header className={styles.masthead}>
       <img className={styles.logo} src={logoCofidest} alt="Cofidest" />
       <div>
-        <h1 className={styles.title}>Permissions Manager</h1>
+        <h1 className={styles.title}>Gestionnaire de Permissions</h1>
         <p className={styles.subtitle}>Gestion des accès aux bibliothèques par direction</p>
       </div>
-    </div>
+    </header>
   );
 
   if (!authChecked) {
@@ -520,43 +558,76 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     );
   }
 
-  return (
-    <div className={styles.container}>
-      {masthead}
-
-      <div className={styles.tabs}>
-        {directions.map((dir) => (
-          <button
-            key={dir}
-            className={dir === selectedLibrary ? `${styles.tab} ${styles.tabActive}` : styles.tab}
-            onClick={() => { closeMembers(); setSuccessMessage(""); loadPermissions(dir).catch(console.error); }}
-          >
-            {dir}
-          </button>
-        ))}
-        <button className={`${styles.tab} ${styles.newDirectionTab}`} onClick={openCreateModal}>
-          <span className={styles.plusIcon} aria-hidden="true">+</span>
-          Créer une nouvelle Direction
-        </button>
+  // ---------- Vue Accueil : grille de cartes ----------
+  const homeView = (
+    <section key="home" className={styles.view} aria-labelledby="pm-home-title">
+      <div className={styles.sectionHeader}>
+        <h2 id="pm-home-title" className={styles.sectionTitle}>Directions</h2>
+        <p className={styles.sectionHint}>Choisissez une direction pour consulter et gérer les accès à sa bibliothèque.</p>
       </div>
 
-      {!selectedLibrary && !loading && (
-        <p className={styles.emptyState}>Sélectionnez une direction pour afficher les accès à sa bibliothèque.</p>
+      {!directionsLoaded ? (
+        <p className={styles.statusText}>Chargement des directions...</p>
+      ) : (
+        <>
+          {directions.length === 0 && (
+            <p className={styles.emptyState}>{`Aucune bibliothèque « ${DIRECTION_PREFIX}… » n'a été trouvée sur ce site.`}</p>
+          )}
+          <div className={styles.cardGrid}>
+            {directions.map((dir) => {
+              const libelle = libelleDirection(dir);
+              return (
+                <button key={dir} type="button" className={styles.directionCard} onClick={() => openDirection(dir)}>
+                  <span className={styles.cardEyebrow}>Direction</span>
+                  <span className={styles.cardTitle}>{libelle}</span>
+                  <span className={styles.cardAction}>
+                    Gérer les accès <span className={styles.cardArrow} aria-hidden="true">→</span>
+                  </span>
+                </button>
+              );
+            })}
+            <button type="button" className={`${styles.directionCard} ${styles.createCard}`} onClick={openCreateModal}>
+              <span className={styles.createIcon} aria-hidden="true">+</span>
+              <span className={styles.cardTitle}>Créer une nouvelle Direction</span>
+              <span className={styles.cardHint}>Nouvelle bibliothèque aux permissions indépendantes</span>
+            </button>
+          </div>
+        </>
       )}
+    </section>
+  );
+
+  // ---------- Vue Détail : permissions de la direction sélectionnée ----------
+  const detailView = (
+    <section key="detail" className={styles.view} aria-labelledby="pm-detail-title">
+      <button
+        type="button"
+        className={styles.backButton}
+        onClick={backToHome}
+        disabled={removingId !== null}
+      >
+        <span className={styles.backArrow} aria-hidden="true">←</span>
+        Retour aux directions
+      </button>
+
+      <div className={styles.toolbar}>
+        <div>
+          <span className={styles.cardEyebrow}>Bibliothèque</span>
+          <h2 id="pm-detail-title" className={styles.libraryTitle}>{selectedLibrary}</h2>
+        </div>
+        {!loading && !error && (
+          <button className={`${styles.primaryButton} ${styles.addAccessButton}`} onClick={openAddModal}>
+            <span className={styles.plusIcon} aria-hidden="true">+</span>
+            Ajouter un accès
+          </button>
+        )}
+      </div>
 
       {loading && <p className={styles.statusText}>Chargement...</p>}
       {error && <p className={styles.errorBanner}>{error}</p>}
 
-      {!loading && !error && selectedLibrary && (
-        <div>
-          <div className={styles.toolbar}>
-            <h2 className={styles.libraryTitle}>{selectedLibrary}</h2>
-            <button className={`${styles.primaryButton} ${styles.addAccessButton}`} onClick={openAddModal}>
-              <span className={styles.plusIcon} aria-hidden="true">+</span>
-              Ajouter un accès
-            </button>
-          </div>
-
+      {!loading && !error && (
+        <>
           {successMessage && <p className={styles.successBanner}>{successMessage}</p>}
 
           <div className={styles.tableWrapper}>
@@ -600,9 +671,16 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
               </tbody>
             </table>
           </div>
-
-        </div>
+        </>
       )}
+    </section>
+  );
+
+  return (
+    <div className={styles.container}>
+      {masthead}
+
+      {selectedLibrary ? detailView : homeView}
 
       {membersGroup && (
         <div className={styles.modalBackdrop} onClick={closeMembersModal}>

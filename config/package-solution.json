@@ -1,9 +1,9 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/spfx-build/package-solution.schema.json",
   "solution": {
-    "name": "permissions-manager-mk-i-client-side-solution",
-    "id": "16602fc4-57a1-4f62-8da7-4fc2fb1e4ffb",
-    "version": "1.0.1.0",
+    "name": "permissions-manager-mk-iii-client-side-solution",
+    "id": "cfbdcb5e-7578-4104-9d26-b15a1e902ff2",
+    "version": "3.0.0.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
@@ -16,10 +16,10 @@
     },
     "metadata": {
       "shortDescription": {
-        "default": "PermissionsManagerMkII description"
+        "default": "Gestionnaire de Permissions (Mk III) - gestion des accès aux bibliothèques par direction"
       },
       "longDescription": {
-        "default": "PermissionsManagerMkII long description"
+        "default": "Gestionnaire de Permissions (Mk III) : permet aux associés de gérer les accès (consulter, modifier, supprimer) aux bibliothèques de leur direction, avec journalisation des actions."
       },
       "screenshotPaths": [],
       "videoUrl": "",
@@ -27,14 +27,14 @@
     },
     "features": [
       {
-        "title": "permissions-manager-mk-i Feature",
-        "description": "The feature that activates elements of the permissions-manager-mk-i solution.",
-        "id": "e6b91759-b0ed-42ea-9f17-51ed488bb585",
-        "version": "1.0.1.0"
+        "title": "permissions-manager-mk-iii Feature",
+        "description": "The feature that activates elements of the permissions-manager-mk-iii solution.",
+        "id": "92d84bd6-862e-4d7c-ac2a-7ea97d0f64a8",
+        "version": "3.0.0.0"
       }
     ]
   },
   "paths": {
-    "zippedPackage": "solution/permissions-manager-mk-2.sppkg"
+    "zippedPackage": "solution/permissions-manager-mk-3.sppkg"
   }
 }

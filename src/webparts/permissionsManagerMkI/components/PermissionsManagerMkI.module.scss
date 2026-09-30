@@ -1,5 +1,9 @@
 // Styles du web part (SCSS module : les classes sont préfixées automatiquement et importées via "styles.xxx").
-// Charte "registre comptable" : fond #F7F6F2, accent #0F4C5C, polices déclarées en @font-face.
+// V3 "Liquid Glass" : surfaces translucides (frosted glass) posées sur un fond dégradé aux couleurs de la charte
+// Cofidest (violet #9B26B6, gris #888B8D), polices Open Sans (titres) et Calibri (corps) déclarées en @font-face.
+//
+// Attention : ne jamais mettre de backdrop-filter (ni transform/filter) sur .container. Ces propriétés créent un
+// bloc conteneur pour les éléments position: fixed, et les modales resteraient alors enfermées dans le web part.
 
 // Open Sans (titres). Un @import url(...) vers Google Fonts fait planter sp-css-loader (SPFx) au build,
 // on déclare donc la police directement via @font-face (fichiers servis par jsDelivr).
@@ -27,23 +31,36 @@
   src: url("https://cdn.jsdelivr.net/npm/@fontsource/open-sans@5/files/open-sans-latin-700-normal.woff2") format("woff2");
 }
 
+// Surface "verre dépoli" : fond blanc translucide + flou de l'arrière-plan + liseré clair + ombre douce.
+// $alpha : opacité du fond blanc (plus elle est haute, plus le contenu est lisible).
+@mixin glass($alpha: 0.45, $blur: 14px) {
+  background: rgba(255, 255, 255, $alpha);
+  -webkit-backdrop-filter: blur($blur) saturate(160%);
+  backdrop-filter: blur($blur) saturate(160%);
+  border: 1px solid var(--pm-glass-border);
+  box-shadow: var(--pm-glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
 .container {
   // Charte Cofidest
-  --pm-accent: #9B26B6;          // Violet : actions principales, onglet actif
-  --pm-accent-hover: #83209A;    // Violet assombri pour le survol
-  --pm-accent-soft: #F4E8F7;     // Fond léger violet (tags, survols)
+  --pm-accent: #9B26B6;          // Violet : actions principales, survols
+  --pm-accent-hover: #83209A;    // Violet assombri pour le survol des boutons pleins
+  --pm-accent-soft: rgba(155, 38, 182, 0.1);
   --pm-accent-shadow: rgba(155, 38, 182, 0.28);
-  --pm-grey: #888B8D;            // Gris : bordures fortes, états inactifs
-  --pm-grey-soft: #E6E7E8;       // Bordures légères, séparateurs
+  --pm-grey: #888B8D;            // Gris : textes secondaires, états inactifs
+  --pm-grey-soft: rgba(136, 139, 141, 0.22); // Séparateurs
   --pm-ink: #1F1F24;
   --pm-ink-muted: #6D7072;       // Gris de la charte, assombri pour la lisibilité des petits textes
-  --pm-bg: #FAFAFB;
-  --pm-surface: #FFFFFF;
   --pm-danger: #C0392B;
-  --pm-danger-soft: #FDECEA;
+  --pm-danger-soft: rgba(253, 236, 234, 0.92);
   --pm-success: #1E7F4F;
-  --pm-success-soft: #E7F5EE;
-  --pm-radius: 6px;
+  --pm-success-soft: rgba(231, 245, 238, 0.92);
+  --pm-radius: 10px;
+  --pm-radius-lg: 18px;
+
+  // Verre
+  --pm-glass-border: rgba(255, 255, 255, 0.6);
+  --pm-glass-shadow: 0 8px 32px rgba(31, 31, 36, 0.08);
 
   // Charte typographique Cofidest
   --pm-font-heading: "Open Sans", "Segoe UI", Arial, sans-serif;
@@ -52,8 +69,14 @@
   font-family: var(--pm-font-body);
   font-weight: 400;
   color: var(--pm-ink);
-  background: var(--pm-bg);
-  padding: 24px;
+  // Fond coloré sur lequel le verre se détache : halos violet et gris de la charte sur un blanc cassé
+  background:
+    radial-gradient(ellipse 60% 50% at 100% 0%, rgba(155, 38, 182, 0.18), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 0% 100%, rgba(136, 139, 141, 0.24), transparent 70%),
+    radial-gradient(ellipse 35% 30% at 15% 15%, rgba(155, 38, 182, 0.08), transparent 70%),
+    linear-gradient(160deg, #FBFAFC 0%, #F2F0F4 100%);
+  border-radius: 22px;
+  padding: 28px;
   max-width: 960px;
   box-sizing: border-box;
 
@@ -70,12 +93,26 @@
 // ---------- En-tête ----------
 
 .masthead {
+  @include glass(0.5, 16px);
+  position: relative;
   display: flex;
   align-items: center;
   gap: 16px;
   margin-bottom: 24px;
-  padding-bottom: 20px;
-  border-bottom: 3px solid var(--pm-accent);
+  padding: 16px 20px;
+  border-radius: var(--pm-radius-lg);
+
+  // Filet violet de la charte, en dégradé sous l'en-tête
+  &::after {
+    content: "";
+    position: absolute;
+    left: 20px;
+    right: 20px;
+    bottom: 0;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+    background: linear-gradient(90deg, var(--pm-accent) 0%, rgba(155, 38, 182, 0) 85%);
+  }
 }
 
 .logo {
@@ -96,55 +133,174 @@
 
 .subtitle {
   font-size: 14px;
-  color: var(--pm-ink-muted);
+  color: var(--pm-grey);
   margin: 0;
 }
 
-// ---------- Onglets ----------
+// ---------- Vues (Accueil / Détail) ----------
 
-.tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  border-bottom: 1px solid var(--pm-grey-soft);
-  margin-bottom: 24px;
+.view {
+  animation: pmViewIn 0.22s ease-out;
 }
 
-.tab {
-  background: none;
-  border: none;
-  padding: 12px 16px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--pm-grey);
-  cursor: pointer;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -1px;
-  border-radius: var(--pm-radius) var(--pm-radius) 0 0;
-  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+.sectionHeader {
+  margin: 0 0 16px 0;
 }
 
-.tab:hover {
-  color: var(--pm-accent);
-  background: var(--pm-accent-soft);
-}
-
-.tabActive,
-.tabActive:hover {
-  color: var(--pm-accent);
-  border-bottom-color: var(--pm-accent);
+.sectionTitle {
+  font-family: var(--pm-font-heading);
+  font-size: 20px;
   font-weight: 700;
-  background: none;
+  margin: 0 0 2px 0;
 }
 
-// Onglet d'action, poussé à droite pour ne pas se confondre avec les directions
-.newDirectionTab {
+.sectionHint {
+  font-size: 14px;
+  color: var(--pm-grey);
+  margin: 0;
+}
+
+// ---------- Vue Accueil : cartes des directions ----------
+
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 16px;
+}
+
+.directionCard {
+  @include glass(0.45, 14px);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-height: 136px;
+  padding: 20px;
+  border-radius: var(--pm-radius-lg);
+  text-align: left;
+  color: var(--pm-ink);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.directionCard:hover {
+  transform: translateY(-4px);
+  background: rgba(255, 255, 255, 0.65);
+  border-color: rgba(155, 38, 182, 0.35);
+  box-shadow: 0 16px 40px rgba(155, 38, 182, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.directionCard:active {
+  transform: translateY(-1px);
+}
+
+.cardEyebrow {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--pm-grey);
+}
+
+.cardTitle {
+  font-family: var(--pm-font-heading);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.cardAction {
+  margin-top: auto;
+  padding-top: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--pm-accent);
+}
+
+.cardArrow {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+
+.directionCard:hover .cardArrow {
+  transform: translateX(4px);
+}
+
+// Carte de création : verre plus léger, contour pointillé violet
+.createCard {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.25);
+  border: 1.5px dashed rgba(155, 38, 182, 0.45);
+  box-shadow: none;
+
+  .cardTitle {
+    font-size: 16px;
+    color: var(--pm-accent);
+  }
+}
+
+.createIcon {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  margin-left: auto;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 8px;
+  border-radius: 50%;
+  background: var(--pm-accent);
+  color: #FFFFFF;
+  font-size: 26px;
+  line-height: 1;
+  box-shadow: 0 4px 12px var(--pm-accent-shadow);
+}
+
+.cardHint {
+  font-size: 13px;
+  color: var(--pm-grey);
+}
+
+// ---------- Vue Détail : bouton de retour ----------
+
+.backButton {
+  @include glass(0.55, 12px);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 8px 18px 8px 14px;
+  border-radius: 999px;
   color: var(--pm-accent);
+  font-size: 14px;
   font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.backButton:hover:not(:disabled) {
+  background: var(--pm-accent);
+  border-color: var(--pm-accent);
+  color: #FFFFFF;
+  box-shadow: 0 6px 16px var(--pm-accent-shadow);
+}
+
+.backButton:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.backArrow {
+  display: inline-block;
+  font-size: 16px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.backButton:hover:not(:disabled) .backArrow {
+  transform: translateX(-3px);
 }
 
 // ---------- Messages ----------
@@ -156,13 +312,14 @@
 }
 
 .emptyState {
+  @include glass(0.35, 10px);
   font-size: 14px;
-  color: var(--pm-grey);
+  color: var(--pm-ink-muted);
   text-align: center;
-  padding: 40px 16px;
+  padding: 32px 16px;
   border: 1px dashed var(--pm-grey);
-  border-radius: var(--pm-radius);
-  margin: 0;
+  border-radius: var(--pm-radius-lg);
+  margin: 0 0 16px 0;
 }
 
 .errorBanner,
@@ -172,6 +329,8 @@
   margin: 0 0 16px 0;
   border-radius: var(--pm-radius);
   border-left: 4px solid;
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
 }
 
 .errorBanner {
@@ -193,10 +352,12 @@
 }
 
 .unauthorized {
+  @include glass(0.55, 14px);
   padding: 40px 24px;
   text-align: center;
   color: var(--pm-ink-muted);
   font-size: 14px;
+  border-radius: var(--pm-radius-lg);
 }
 
 // ---------- Barre d'outils + tableau ----------
@@ -204,7 +365,7 @@
 .toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   flex-wrap: wrap;
   gap: 12px;
   margin-bottom: 16px;
@@ -212,15 +373,15 @@
 
 .libraryTitle {
   font-family: var(--pm-font-heading);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 700;
-  margin: 0;
+  margin: 2px 0 0 0;
 }
 
+// Tableau : verre quasi opaque, pour que le flou ne nuise jamais à la lecture des lignes
 .tableWrapper {
-  background: var(--pm-surface);
-  border: 1px solid var(--pm-grey-soft);
-  border-radius: var(--pm-radius);
+  @include glass(0.9, 20px);
+  border-radius: 16px;
   overflow-x: auto;
   margin-bottom: 24px;
 }
@@ -234,12 +395,12 @@
 .table th {
   text-align: left;
   font-weight: 600;
-  color: var(--pm-grey);
+  color: var(--pm-ink-muted);
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   padding: 12px 16px;
-  background: var(--pm-bg);
+  background: rgba(246, 245, 248, 0.95);
   border-bottom: 1px solid var(--pm-grey-soft);
 }
 
@@ -253,8 +414,12 @@
   border-bottom: none;
 }
 
+.table tbody tr {
+  transition: background 0.12s ease;
+}
+
 .table tbody tr:hover {
-  background: #FCF9FD;
+  background: rgba(155, 38, 182, 0.05);
 }
 
 .nameCell {
@@ -301,7 +466,8 @@
 .removeButton:focus-visible,
 .closeButton:focus-visible,
 .segment:focus-visible,
-.tab:focus-visible {
+.directionCard:focus-visible,
+.backButton:focus-visible {
   outline: 2px solid var(--pm-accent);
   outline-offset: 2px;
 }
@@ -317,7 +483,7 @@
   font-size: 15px;
   font-weight: 600;
   padding: 12px 24px;
-  box-shadow: 0 2px 6px var(--pm-accent-shadow);
+  box-shadow: 0 2px 6px var(--pm-accent-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
 .primaryButton:hover:not(:disabled) {
@@ -349,8 +515,8 @@
 }
 
 .secondaryButton {
-  background: var(--pm-surface);
-  border: 1px solid var(--pm-grey);
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(136, 139, 141, 0.55);
   color: var(--pm-ink);
   font-size: 14px;
   font-weight: 600;
@@ -371,7 +537,7 @@
 
 // Bouton de retrait : contour rouge, jamais plein, pour le distinguer des actions positives
 .removeButton {
-  background: var(--pm-surface);
+  background: rgba(255, 255, 255, 0.7);
   border: 1.5px solid var(--pm-danger);
   color: var(--pm-danger);
   font-size: 14px;
@@ -410,11 +576,12 @@
   font-family: inherit;
   font-size: 14px;
   padding: 10px 12px;
-  border: 1px solid var(--pm-grey);
+  border: 1px solid rgba(136, 139, 141, 0.55);
   border-radius: var(--pm-radius);
-  background: var(--pm-surface);
+  background: rgba(255, 255, 255, 0.85);
   color: var(--pm-ink);
   width: 100%;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .input:focus,
@@ -422,9 +589,10 @@
   outline: 2px solid var(--pm-accent);
   outline-offset: 0;
   border-color: var(--pm-accent);
+  box-shadow: 0 0 0 4px rgba(155, 38, 182, 0.12);
 }
 
-// ---------- Modale d'ajout ----------
+// ---------- Modales ----------
 
 .modalBackdrop {
   position: fixed;
@@ -438,19 +606,20 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  background: rgba(20, 16, 24, 0.55);
+  background: rgba(20, 16, 24, 0.35);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   animation: pmFadeIn 0.15s ease-out;
 }
 
 .modal {
+  @include glass(0.75, 28px);
   width: 100%;
   max-width: 480px;
   max-height: calc(100vh - 32px);
   overflow-y: auto;
-  background: var(--pm-surface);
-  border-radius: 10px;
-  border-top: 4px solid var(--pm-accent);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+  border-radius: 20px;
+  box-shadow: 0 24px 64px rgba(20, 16, 24, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.8);
   animation: pmSlideUp 0.18s ease-out;
 }
 
@@ -460,6 +629,7 @@
 
   .tableWrapper {
     margin-bottom: 0;
+    box-shadow: none;
   }
 }
 
@@ -468,7 +638,7 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
-  padding: 20px 24px 12px 24px;
+  padding: 22px 24px 12px 24px;
 }
 
 .modalTitle {
@@ -480,19 +650,20 @@
 
 .modalSubtitle {
   font-size: 13px;
-  color: var(--pm-ink-muted);
+  color: var(--pm-grey);
   margin: 0;
 }
 
 .closeButton {
-  background: none;
+  background: rgba(118, 118, 128, 0.12);
   border: none;
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
   border-radius: 50%;
-  color: var(--pm-grey);
+  color: var(--pm-ink-muted);
   cursor: pointer;
   transition: background 0.15s ease, color 0.15s ease;
 }
@@ -514,11 +685,13 @@
   gap: 16px;
 }
 
+// Sélecteur segmenté façon iOS : rail gris translucide, segment actif en pastille blanche
 .segmented {
   display: flex;
-  border: 1px solid var(--pm-grey);
-  border-radius: var(--pm-radius);
-  overflow: hidden;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: rgba(118, 118, 128, 0.14);
 }
 
 .segment {
@@ -526,27 +699,24 @@
   font-family: inherit;
   font-size: 14px;
   font-weight: 600;
-  padding: 10px 12px;
-  background: var(--pm-surface);
-  color: var(--pm-grey);
+  padding: 9px 12px;
+  background: transparent;
+  color: var(--pm-ink-muted);
   border: none;
+  border-radius: 9px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
-}
-
-.segment + .segment {
-  border-left: 1px solid var(--pm-grey);
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .segment:hover {
   color: var(--pm-accent);
-  background: var(--pm-accent-soft);
 }
 
 .segmentActive,
 .segmentActive:hover {
-  background: var(--pm-accent);
-  color: #FFFFFF;
+  background: #FFFFFF;
+  color: var(--pm-accent);
+  box-shadow: 0 2px 8px rgba(31, 31, 36, 0.12);
 }
 
 .field {
@@ -575,9 +745,9 @@
   justify-content: flex-end;
   gap: 10px;
   padding: 16px 24px;
-  border-top: 1px solid var(--pm-grey-soft);
-  background: var(--pm-bg);
-  border-radius: 0 0 10px 10px;
+  border-top: 1px solid rgba(31, 31, 36, 0.06);
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 0 0 20px 20px;
 
   .secondaryButton {
     padding: 12px 20px;
@@ -595,11 +765,58 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes pmViewIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+// ---------- Navigateurs sans backdrop-filter : verre remplacé par un blanc presque opaque ----------
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .masthead,
+  .directionCard,
+  .backButton,
+  .unauthorized,
+  .tableWrapper {
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .modal {
+    background: rgba(255, 255, 255, 0.97);
+  }
+
+  .modalBackdrop {
+    background: rgba(20, 16, 24, 0.55);
+  }
+}
+
+// ---------- Animations réduites (préférence système) ----------
+
+@media (prefers-reduced-motion: reduce) {
+  .view,
+  .modal,
+  .modalBackdrop {
+    animation: none;
+  }
+
+  .directionCard:hover,
+  .primaryButton:hover:not(:disabled),
+  .directionCard:hover .cardArrow,
+  .backButton:hover:not(:disabled) .backArrow {
+    transform: none;
+  }
+}
+
 // ---------- Petits écrans ----------
 
 @media (max-width: 600px) {
   .container {
     padding: 16px;
+    border-radius: 16px;
+  }
+
+  .masthead {
+    padding: 12px 14px;
   }
 
   .logo {
@@ -608,6 +825,16 @@
 
   .title {
     font-size: 22px;
+  }
+
+  .cardGrid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .directionCard {
+    min-height: 120px;
+    padding: 16px;
   }
 
   .toolbar .addAccessButton {
