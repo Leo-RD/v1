@@ -9,6 +9,9 @@
 //   d'en supprimer, de gérer les membres des groupes SharePoint et de créer une nouvelle direction.
 // - Bouton "Comment ça marche ?" (en-tête) : fenêtre d'aide pour les non-initiés (mode d'emploi,
 //   différence Utilisateur / Groupe, niveaux d'accès, sécurités).
+// - Bouton "Votre avis" (en-tête) : page de feedback (retour, suggestion, question) ; le message est écrit dans
+//   la liste SharePoint "Feedback", ce qui déclenche l'envoi d'un email au service informatique
+//   (destinataires : FEEDBACK_DESTINATAIRES dans pnpjsConfig.ts).
 // - Garde-fou : impossible de retirer le dernier titulaire du niveau "Contrôle total".
 // - Chaque action est journalisée via logAction (voir pnpjsConfig.ts).
 // Prérequis : l'héritage des permissions de la bibliothèque doit avoir été rompu par l'IT (sinon erreur 400).
@@ -16,7 +19,7 @@
 import * as React from 'react';
 import { useState, useEffect, useRef } from 'react';
 import { IPermissionsManagerMkIProps } from './IPermissionsManagerMkIProps';
-import { getSP, logAction } from '../pnpjsConfig';
+import { getSP, logAction, sendFeedback, FeedbackCategorie } from '../pnpjsConfig';
 import styles from './PermissionsManagerMkI.module.scss';
 import logoCofidest from '../assets/icon-cofidest-group.png';
 import "@pnp/sp/webs";
@@ -81,6 +84,13 @@ const NIVEAUX_AIDE: { nom: string; description: string }[] = [
   { nom: CONTROLE_TOTAL, description: "Peut tout faire, y compris décider qui a accès. À réserver aux associés." }
 ];
 
+// Page de feedback : catégories proposées (la valeur est écrite dans la colonne "Categorie" de la liste "Feedback")
+const CATEGORIES_FEEDBACK: { valeur: FeedbackCategorie; libelle: string }[] = [
+  { valeur: "Retour", libelle: "Retour d'expérience" },
+  { valeur: "Suggestion", libelle: "Suggestion" },
+  { valeur: "Question", libelle: "Question" }
+];
+
 const estGroupe = (principalType: number): boolean =>
   principalType === PRINCIPAL_TYPE_SHAREPOINT_GROUP ||
   principalType === PRINCIPAL_TYPE_SECURITY_GROUP ||
@@ -134,6 +144,14 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const [createMessage, setCreateMessage] = useState<string>("");
 
   const [isHelpOpen, setIsHelpOpen] = useState<boolean>(false);
+
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState<boolean>(false);
+  const [feedbackCategorie, setFeedbackCategorie] = useState<FeedbackCategorie>("Retour");
+  const [feedbackObjet, setFeedbackObjet] = useState<string>("");
+  const [feedbackMessage, setFeedbackMessage] = useState<string>("");
+  const [feedbackLoading, setFeedbackLoading] = useState<boolean>(false);
+  const [feedbackError, setFeedbackError] = useState<string>("");
+  const [feedbackSent, setFeedbackSent] = useState<boolean>(false);
 
   const sp = getSP(props.context);
 
@@ -545,6 +563,47 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     setSuccessMessage("");
   };
 
+  // Ouverture de la page de feedback : la direction éventuellement ouverte reste en mémoire,
+  // on la retrouve telle quelle en quittant la page.
+  const openFeedback = (): void => {
+    if (isFeedbackOpen) return;
+    setFeedbackCategorie("Retour");
+    setFeedbackObjet("");
+    setFeedbackMessage("");
+    setFeedbackError("");
+    setFeedbackSent(false);
+    setIsFeedbackOpen(true);
+  };
+
+  const closeFeedback = (): void => {
+    if (feedbackLoading) return;
+    setIsFeedbackOpen(false);
+    setFeedbackError("");
+  };
+
+  const handleSendFeedback = async (): Promise<void> => {
+    const message = feedbackMessage.trim();
+    if (!message) {
+      setFeedbackError("Écrivez votre message avant de l'envoyer.");
+      return;
+    }
+    const libelleCategorie = CATEGORIES_FEEDBACK.find((c) => c.valeur === feedbackCategorie)?.libelle ?? feedbackCategorie;
+    // Objet facultatif : à défaut, "Suggestion - Prénom Nom". Tronqué à la limite d'une colonne Titre (255 caractères).
+    const objet = (feedbackObjet.trim() || `${libelleCategorie} - ${props.context.pageContext.user.displayName}`).substring(0, 255);
+
+    setFeedbackLoading(true);
+    setFeedbackError("");
+    try {
+      await sendFeedback(sp, feedbackCategorie, objet, message);
+      setFeedbackSent(true);
+    } catch (e: any) {
+      console.error(e);
+      setFeedbackError(`Votre message n'a pas pu être envoyé : ${e?.message || "erreur inconnue, voir la console (F12)."}`);
+    } finally {
+      setFeedbackLoading(false);
+    }
+  };
+
   // "Direction Juridique" -> "Juridique" (libellé affiché sur les cartes)
   const libelleDirection = (dir: string): string =>
     dir.substring(DIRECTION_PREFIX.length).trim() || dir;
@@ -552,15 +611,26 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const masthead = (
     <header className={styles.masthead}>
       <img className={styles.logo} src={logoCofidest} alt="Cofidest" />
-      <div>
+      <div className={styles.mastheadText}>
         <h1 className={styles.title}>Gestionnaire de Permissions</h1>
         <p className={styles.subtitle}>Gestion des accès aux bibliothèques par direction</p>
       </div>
       {isAuthorized && (
-        <button type="button" className={styles.helpButton} onClick={() => setIsHelpOpen(true)}>
-          <span className={styles.helpIcon} aria-hidden="true">?</span>
-          Comment ça marche ?
-        </button>
+        <div className={styles.mastheadActions}>
+          <button type="button" className={styles.helpButton} onClick={() => setIsHelpOpen(true)}>
+            <span className={styles.helpIcon} aria-hidden="true">?</span>
+            Comment ça marche ?
+          </button>
+          <button type="button" className={styles.helpButton} onClick={openFeedback}>
+            <span className={styles.helpIcon} aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="1.5" y="3" width="13" height="10" rx="1.5" />
+                <path d="M2 4.5l6 4.5 6-4.5" />
+              </svg>
+            </span>
+            Votre avis
+          </button>
+        </div>
       )}
     </header>
   );
@@ -701,11 +771,100 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     </section>
   );
 
+  // ---------- Page Feedback : retours, suggestions et questions adressés au service informatique ----------
+  const feedbackView = (
+    <section key="feedback" className={styles.view} aria-labelledby="pm-feedback-title">
+      <button
+        type="button"
+        className={styles.backButton}
+        onClick={closeFeedback}
+        disabled={feedbackLoading}
+      >
+        <span className={styles.backArrow} aria-hidden="true">←</span>
+        Retour
+      </button>
+
+      <div className={styles.sectionHeader}>
+        <h2 id="pm-feedback-title" className={styles.sectionTitle}>Votre avis</h2>
+        <p className={styles.sectionHint}>
+          Un retour sur l’outil, une idée d’amélioration ou une question ? Votre message est transmis par email au service informatique.
+        </p>
+      </div>
+
+      {feedbackSent ? (
+        <div className={styles.feedbackPanel}>
+          <p className={styles.successBanner}>Merci ! Votre message a bien été transmis au service informatique.</p>
+          <div className={styles.feedbackActions}>
+            <button className={styles.secondaryButton} onClick={() => { setFeedbackObjet(""); setFeedbackMessage(""); setFeedbackSent(false); }}>
+              Envoyer un autre message
+            </button>
+            <button className={styles.primaryButton} onClick={closeFeedback}>
+              Terminer
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className={styles.feedbackPanel}>
+          <div className={styles.field}>
+            <span className={styles.fieldLabel}>Type de message</span>
+            <div className={styles.segmented} role="radiogroup" aria-label="Type de message">
+              {CATEGORIES_FEEDBACK.map((c) => (
+                <button
+                  key={c.valeur}
+                  type="button"
+                  role="radio"
+                  aria-checked={feedbackCategorie === c.valeur}
+                  className={feedbackCategorie === c.valeur ? `${styles.segment} ${styles.segmentActive}` : styles.segment}
+                  onClick={() => setFeedbackCategorie(c.valeur)}
+                >
+                  {c.libelle}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Objet (facultatif)</span>
+            <input
+              type="text"
+              className={styles.input}
+              maxLength={255}
+              value={feedbackObjet}
+              onChange={(e) => setFeedbackObjet(e.target.value)}
+            />
+          </label>
+
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Votre message</span>
+            <textarea
+              className={`${styles.input} ${styles.textarea}`}
+              rows={7}
+              value={feedbackMessage}
+              onChange={(e) => setFeedbackMessage(e.target.value)}
+              autoFocus
+            />
+          </label>
+
+          {feedbackError && <p className={styles.modalError}>{feedbackError}</p>}
+
+          <div className={styles.feedbackActions}>
+            <button className={styles.secondaryButton} onClick={closeFeedback} disabled={feedbackLoading}>
+              Annuler
+            </button>
+            <button className={styles.primaryButton} onClick={handleSendFeedback} disabled={feedbackLoading}>
+              {feedbackLoading ? "Envoi..." : "Envoyer"}
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+
   return (
     <div className={styles.container}>
       {masthead}
 
-      {selectedLibrary ? detailView : homeView}
+      {isFeedbackOpen ? feedbackView : selectedLibrary ? detailView : homeView}
 
       {membersGroup && (
         <div className={styles.modalBackdrop} onClick={closeMembersModal}>
@@ -957,80 +1116,108 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
               </button>
             </div>
 
+            {/* Sections repliables (<details> natif) : seule la première est ouverte par défaut */}
             <div className={styles.modalBody}>
-              <section className={styles.helpSection}>
-                <h4 className={styles.helpTitle}>À quoi sert cet outil ?</h4>
-                <p className={styles.helpText}>
-                  Chaque direction du cabinet possède son propre espace de documents (une « bibliothèque »).
-                  Cet outil vous permet de choisir <strong>qui peut voir ou modifier</strong> les documents de chaque direction,
-                  simplement, sans passer par les réglages de SharePoint.
-                </p>
-              </section>
-
-              <section className={styles.helpSection}>
-                <h4 className={styles.helpTitle}>Mode d’emploi en 4 étapes</h4>
-                <ol className={styles.helpList}>
-                  <li><strong>Cliquez sur la carte d’une direction</strong> sur la page d’accueil.</li>
-                  <li>Un tableau affiche <strong>toutes les personnes et tous les groupes</strong> qui ont accès à ses documents, avec leur niveau d’accès.</li>
-                  <li>Pour donner un accès, cliquez sur <strong>« + Ajouter un accès »</strong>, indiquez à qui, puis choisissez le niveau.</li>
-                  <li>Pour enlever un accès, cliquez sur <strong>« Retirer »</strong> sur la ligne concernée, puis confirmez.</li>
-                </ol>
-                <p className={styles.helpNote}>
-                  Chaque consultation, ajout ou retrait est enregistré, et les associés en sont informés par email.
-                </p>
-              </section>
-
-              <section className={styles.helpSection}>
-                <h4 className={styles.helpTitle}>Utilisateur ou Groupe : quelle différence ?</h4>
-                <div className={styles.helpCompare}>
-                  <div className={styles.helpCard}>
-                    <span className={styles.typeTag}>Utilisateur</span>
-                    <p className={styles.helpText}><strong>Une seule personne</strong>, reconnue par son adresse email.</p>
-                    <p className={styles.helpText}>L’accès ne concerne qu’elle, et uniquement pour cette direction.</p>
-                    <p className={styles.helpExample}>Exemple : donner l’accès à prenom.nom@cofidestsas.com</p>
-                  </div>
-                  <div className={styles.helpCard}>
-                    <span className={styles.typeTag}>Groupe</span>
-                    <p className={styles.helpText}><strong>Une liste de personnes</strong> réunies sous un même nom (par exemple « {GROUPE_ASSOCIES} »).</p>
+              <div className={styles.helpAccordion}>
+                <details className={styles.helpSection} open>
+                  <summary className={styles.helpSummary}>
+                    <span className={styles.helpTitle}>À quoi sert cet outil ?</span>
+                    <span className={styles.helpChevron} aria-hidden="true">›</span>
+                  </summary>
+                  <div className={styles.helpContent}>
                     <p className={styles.helpText}>
-                      Donner un accès au groupe le donne à <strong>tous ses membres</strong>. Le bouton « Membres » permet de voir
-                      qui en fait partie, d’y ajouter ou d’en retirer quelqu’un.
+                      Chaque direction du cabinet possède son propre espace de documents (une « bibliothèque »).
+                      Cet outil vous permet de choisir <strong>qui peut voir ou modifier</strong> les documents de chaque direction,
+                      simplement, sans passer par les réglages de SharePoint.
                     </p>
-                    <p className={styles.helpExample}>Exemple : donner l’accès au groupe « Comptabilité »</p>
                   </div>
-                </div>
-                <p className={styles.helpWarning}>
-                  <strong>Attention :</strong> un groupe est commun à toutes les directions. Ajouter une personne à un groupe
-                  lui donne aussi accès à <strong>toutes les autres directions</strong> où ce groupe a déjà accès.
-                  En cas de doute, ajoutez plutôt la personne en tant qu’Utilisateur.
-                </p>
-              </section>
+                </details>
 
-              <section className={styles.helpSection}>
-                <h4 className={styles.helpTitle}>Les niveaux d’accès</h4>
-                <dl className={styles.helpLevels}>
-                  {NIVEAUX_AIDE.map((n) => (
-                    <div key={n.nom} className={styles.helpLevel}>
-                      <dt className={n.nom === CONTROLE_TOTAL ? styles.levelFullControl : undefined}>{n.nom}</dt>
-                      <dd>{n.description}</dd>
+                <details className={styles.helpSection}>
+                  <summary className={styles.helpSummary}>
+                    <span className={styles.helpTitle}>Mode d’emploi en 4 étapes</span>
+                    <span className={styles.helpChevron} aria-hidden="true">›</span>
+                  </summary>
+                  <div className={styles.helpContent}>
+                    <ol className={styles.helpList}>
+                      <li><strong>Cliquez sur la carte d’une direction</strong> sur la page d’accueil.</li>
+                      <li>Un tableau affiche <strong>toutes les personnes et tous les groupes</strong> qui ont accès à ses documents, avec leur niveau d’accès.</li>
+                      <li>Pour donner un accès, cliquez sur <strong>« + Ajouter un accès »</strong>, indiquez à qui, puis choisissez le niveau.</li>
+                      <li>Pour enlever un accès, cliquez sur <strong>« Retirer »</strong> sur la ligne concernée, puis confirmez.</li>
+                    </ol>
+                    <p className={styles.helpNote}>
+                      Chaque consultation, ajout ou retrait est enregistré, et les associés en sont informés par email.
+                    </p>
+                  </div>
+                </details>
+
+                <details className={styles.helpSection}>
+                  <summary className={styles.helpSummary}>
+                    <span className={styles.helpTitle}>Utilisateur ou Groupe : quelle différence ?</span>
+                    <span className={styles.helpChevron} aria-hidden="true">›</span>
+                  </summary>
+                  <div className={styles.helpContent}>
+                    <div className={styles.helpCompare}>
+                      <div className={styles.helpCard}>
+                        <span className={styles.typeTag}>Utilisateur</span>
+                        <p className={styles.helpText}><strong>Une seule personne</strong>, reconnue par son adresse email.</p>
+                        <p className={styles.helpText}>L’accès ne concerne qu’elle, et uniquement pour cette direction.</p>
+                        <p className={styles.helpExample}>Exemple : donner l’accès à prenom.nom@cofidestsas.com</p>
+                      </div>
+                      <div className={styles.helpCard}>
+                        <span className={styles.typeTag}>Groupe</span>
+                        <p className={styles.helpText}><strong>Une liste de personnes</strong> réunies sous un même nom (par exemple « {GROUPE_ASSOCIES} »).</p>
+                        <p className={styles.helpText}>
+                          Donner un accès au groupe le donne à <strong>tous ses membres</strong>. Le bouton « Membres » permet de voir
+                          qui en fait partie, d’y ajouter ou d’en retirer quelqu’un.
+                        </p>
+                        <p className={styles.helpExample}>Exemple : donner l’accès au groupe « Comptabilité »</p>
+                      </div>
                     </div>
-                  ))}
-                </dl>
-                <p className={styles.helpNote}>
-                  Conseil : donnez toujours le niveau le plus faible suffisant. Pour simplement consulter des documents, choisissez « Lecture ».
-                  Le niveau « Accès limité », parfois visible dans le tableau, est ajouté automatiquement par SharePoint : vous pouvez l’ignorer.
-                </p>
-              </section>
+                    <p className={styles.helpWarning}>
+                      <strong>Attention :</strong> un groupe est commun à toutes les directions. Ajouter une personne à un groupe
+                      lui donne aussi accès à <strong>toutes les autres directions</strong> où ce groupe a déjà accès.
+                      En cas de doute, ajoutez plutôt la personne en tant qu’Utilisateur.
+                    </p>
+                  </div>
+                </details>
 
-              <section className={styles.helpSection}>
-                <h4 className={styles.helpTitle}>Les sécurités intégrées</h4>
-                <ul className={styles.helpList}>
-                  <li>Une confirmation vous est toujours demandée avant de retirer un accès.</li>
-                  <li>Il est impossible de retirer le dernier titulaire du « {CONTROLE_TOTAL} » d’une direction.</li>
-                  <li>Un groupe entier ne peut pas être retiré depuis cet outil (seuls ses membres peuvent l’être).</li>
-                  <li>Vous ne pouvez pas vous retirer vous-même du groupe « {GROUPE_ASSOCIES} ».</li>
-                </ul>
-              </section>
+                <details className={styles.helpSection}>
+                  <summary className={styles.helpSummary}>
+                    <span className={styles.helpTitle}>Les niveaux d’accès</span>
+                    <span className={styles.helpChevron} aria-hidden="true">›</span>
+                  </summary>
+                  <div className={styles.helpContent}>
+                    <dl className={styles.helpLevels}>
+                      {NIVEAUX_AIDE.map((n) => (
+                        <div key={n.nom} className={styles.helpLevel}>
+                          <dt className={n.nom === CONTROLE_TOTAL ? styles.levelFullControl : undefined}>{n.nom}</dt>
+                          <dd>{n.description}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className={styles.helpNote}>
+                      Conseil : donnez toujours le niveau le plus faible suffisant. Pour simplement consulter des documents, choisissez « Lecture ».
+                      Le niveau « Accès limité », parfois visible dans le tableau, est ajouté automatiquement par SharePoint : vous pouvez l’ignorer.
+                    </p>
+                  </div>
+                </details>
+
+                <details className={styles.helpSection}>
+                  <summary className={styles.helpSummary}>
+                    <span className={styles.helpTitle}>Les sécurités intégrées</span>
+                    <span className={styles.helpChevron} aria-hidden="true">›</span>
+                  </summary>
+                  <div className={styles.helpContent}>
+                    <ul className={styles.helpList}>
+                      <li>Une confirmation vous est toujours demandée avant de retirer un accès.</li>
+                      <li>Il est impossible de retirer le dernier titulaire du « {CONTROLE_TOTAL} » d’une direction.</li>
+                      <li>Un groupe entier ne peut pas être retiré depuis cet outil (seuls ses membres peuvent l’être).</li>
+                      <li>Vous ne pouvez pas vous retirer vous-même du groupe « {GROUPE_ASSOCIES} ».</li>
+                    </ul>
+                  </div>
+                </details>
+              </div>
             </div>
 
             <div className={styles.modalFooter}>

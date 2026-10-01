@@ -97,6 +97,7 @@
   position: relative;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 24px;
   padding: 16px 20px;
@@ -137,11 +138,24 @@
   margin: 0;
 }
 
-// Bouton d'aide, calé en haut à droite de l'en-tête : libellé explicite pour les utilisateurs non initiés
-.helpButton {
-  @include glass(0.6, 12px);
+.mastheadText {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+// Boutons de l'en-tête ("Comment ça marche ?", "Votre avis"), calés en haut à droite
+.mastheadActions {
   align-self: flex-start;
   margin-left: auto;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+// Bouton d'en-tête en pastille : libellé explicite pour les utilisateurs non initiés
+.helpButton {
+  @include glass(0.6, 12px);
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -639,6 +653,39 @@
   box-shadow: 0 0 0 4px rgba(155, 38, 182, 0.12);
 }
 
+.textarea {
+  min-height: 140px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+// ---------- Page Feedback ----------
+
+.feedbackPanel {
+  @include glass(0.6, 14px);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  border-radius: var(--pm-radius-lg);
+
+  .successBanner {
+    margin: 0;
+  }
+}
+
+.feedbackActions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  .secondaryButton {
+    padding: 12px 20px;
+    font-size: 15px;
+  }
+}
+
 // ---------- Modales ----------
 
 .modalBackdrop {
@@ -805,15 +852,63 @@
 // ---------- Fenêtre d'aide ----------
 // Textes un peu plus grands que le reste de l'outil : public non initié, lecture confortable
 
+// Accordéon : chaque section est un <details> dont le titre (<summary>) déplie le détail
+.helpAccordion {
+  display: flex;
+  flex-direction: column;
+}
+
 .helpSection {
+  & + & {
+    border-top: 1px solid var(--pm-grey-soft);
+  }
+}
+
+.helpSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  border-radius: var(--pm-radius);
+  transition: background 0.15s ease;
+
+  // Masque le triangle natif (Chrome/Safari) : remplacé par .helpChevron
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  &:hover {
+    background: var(--pm-accent-soft);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pm-accent);
+    outline-offset: 2px;
+  }
+}
+
+.helpChevron {
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--pm-accent);
+  transition: transform 0.2s ease;
+
+  .helpSection[open] & {
+    transform: rotate(90deg);
+  }
+}
+
+.helpContent {
   display: flex;
   flex-direction: column;
   gap: 8px;
-
-  & + & {
-    padding-top: 16px;
-    border-top: 1px solid var(--pm-grey-soft);
-  }
+  padding: 0 4px 16px 4px;
+  animation: pmViewIn 0.2s ease-out;
 }
 
 .helpTitle {
@@ -934,6 +1029,7 @@
   .backButton,
   .helpButton,
   .unauthorized,
+  .feedbackPanel,
   .tableWrapper {
     background: rgba(255, 255, 255, 0.92);
   }
@@ -952,8 +1048,13 @@
 @media (prefers-reduced-motion: reduce) {
   .view,
   .modal,
-  .modalBackdrop {
+  .modalBackdrop,
+  .helpContent {
     animation: none;
+  }
+
+  .helpChevron {
+    transition: none;
   }
 
   .directionCard:hover,
@@ -998,13 +1099,22 @@
     width: 100%;
   }
 
-  // En-tête : le bouton d'aide passe sous le titre
-  .masthead {
-    flex-wrap: wrap;
+  // En-tête : les boutons passent sous le titre
+  .mastheadActions {
+    margin-left: 0;
+    justify-content: flex-start;
   }
 
-  .helpButton {
-    margin-left: 0;
+  .feedbackPanel {
+    padding: 16px;
+  }
+
+  .feedbackActions {
+    flex-direction: column-reverse;
+
+    button {
+      width: 100%;
+    }
   }
 
   .helpLevel {

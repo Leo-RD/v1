@@ -37,4 +37,33 @@ export const logAction = async (
     // On ne bloque jamais l'action principale si le log échoue
     console.error("Erreur lors de l'écriture du log", e);
   }
-}; 
+};
+
+// ---------- Feedback ----------
+// Adresses du service informatique qui reçoivent les retours envoyés depuis la page "Votre avis".
+// >>> Pour modifier ou ajouter un destinataire, c'est ICI : une adresse par ligne, entre guillemets, séparées par des virgules.
+// Elles sont copiées dans la colonne "Destinataires" de chaque retour, que le flux Power Automate utilise comme champ "À".
+export const FEEDBACK_DESTINATAIRES: string[] = [
+  "leopold.roux-decorzent@cofidest.com"
+];
+
+export const FEEDBACK_LIST = "Feedback";
+
+export type FeedbackCategorie = "Retour" | "Suggestion" | "Question";
+
+// Écrit un retour dans la liste SharePoint "Feedback" (colonnes : Categorie, Message, Destinataires), ce qui
+// déclenche le flux Power Automate d'envoi de l'email. L'auteur est fourni par la colonne native "Créé par".
+// Contrairement à logAction, l'écriture EST l'action principale : une erreur est remontée à l'appelant.
+export const sendFeedback = async (
+  sp: ReturnType<typeof getSP>,
+  categorie: FeedbackCategorie,
+  objet: string,
+  message: string
+): Promise<void> => {
+  await sp.web.lists.getByTitle(FEEDBACK_LIST).items.add({
+    Title: objet,
+    Categorie: categorie,
+    Message: message,
+    Destinataires: FEEDBACK_DESTINATAIRES.join(";")
+  });
+};
