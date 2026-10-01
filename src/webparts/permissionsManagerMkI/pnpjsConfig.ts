@@ -44,7 +44,8 @@ export const logAction = async (
 // >>> Pour modifier ou ajouter un destinataire, c'est ICI : une adresse par ligne, entre guillemets, séparées par des virgules.
 // Elles sont copiées dans la colonne "Destinataires" de chaque retour, que le flux Power Automate utilise comme champ "À".
 export const FEEDBACK_DESTINATAIRES: string[] = [
-  "leopold.roux-decorzent@cofidest.com"
+  "leopold.roux-decorzent@cofidest.com",
+  "service.informatique@cofidest.com"
 ];
 
 export const FEEDBACK_LIST = "Feedback";

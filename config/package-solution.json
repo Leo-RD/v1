@@ -3,7 +3,7 @@
   "solution": {
     "name": "permissions-manager-mk-iii-client-side-solution",
     "id": "cfbdcb5e-7578-4104-9d26-b15a1e902ff2",
-    "version": "3.0.0.0",
+    "version": "3.1.0.0",
     "includeClientSideAssets": true,
     "skipFeatureDeployment": true,
     "isDomainIsolated": false,
@@ -30,7 +30,7 @@
         "title": "permissions-manager-mk-iii Feature",
         "description": "The feature that activates elements of the permissions-manager-mk-iii solution.",
         "id": "92d84bd6-862e-4d7c-ac2a-7ea97d0f64a8",
-        "version": "3.0.0.0"
+        "version": "3.1.0.0"
       }
     ]
   },

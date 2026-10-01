@@ -61,6 +61,7 @@ interface IGroupMember {
   Title: string;
   Email: string;
   PrincipalType: number;
+  LoginName: string;
 }
 
 type TargetType = "user" | "group";
@@ -71,6 +72,10 @@ const TEMPLATE_DOCUMENT_LIBRARY = 101;
 const GROUPE_ASSOCIES = "Associés"; // À adapter au nom exact du groupe SharePoint
 const CONTROLE_TOTAL = "Contrôle total";
 const MESSAGE_GROUPE_PROTEGE = "Par sécurité, la suppression d'un groupe entier n'est pas autorisée ici.";
+const MESSAGE_MEMBRE_PROTEGE = "Par sécurité, les groupes et les comptes système ne peuvent pas être retirés d'un groupe ici.";
+// Préfixe du LoginName des comptes Microsoft 365 nominatifs (membres et invités).
+// Les comptes système (SHAREPOINT\system, principaux d'application...) ne le portent pas.
+const PREFIXE_COMPTE_NOMINATIF = "i:0#.f|membership|";
 // Caractères refusés par SharePoint dans le nom (et l'URL) d'une bibliothèque
 const CARACTERES_INTERDITS = /[~"#%&*:<>?/\\{|}]/;
 
@@ -96,7 +101,13 @@ const estGroupe = (principalType: number): boolean =>
   principalType === PRINCIPAL_TYPE_SECURITY_GROUP ||
   principalType === PRINCIPAL_TYPE_DISTRIBUTION_LIST;
 
-const getPrincipalTypeLabel = (principalType: number): string => {
+// Seuls les comptes nominatifs sont retirables d'un groupe : tout le reste (groupes de sécurité,
+// listes de distribution, compte système...) est protégé
+const estMembreProtege = (member: IGroupMember): boolean =>
+  member.PrincipalType !== PRINCIPAL_TYPE_USER ||
+  !member.LoginName.toLowerCase().startsWith(PREFIXE_COMPTE_NOMINATIF);
+
+const getPrincipalTypeLabel =(principalType: number): string => {
   switch (principalType) {
     case PRINCIPAL_TYPE_SHAREPOINT_GROUP: return "Groupe SharePoint";
     case PRINCIPAL_TYPE_SECURITY_GROUP: return "Groupe de sécurité";
@@ -405,9 +416,9 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     setMembersLoading(true);
     try {
       const users: any[] = await sp.web.siteGroups.getById(groupId)
-        .users.select("Id", "Title", "Email", "PrincipalType")();
+        .users.select("Id", "Title", "Email", "PrincipalType", "LoginName")();
       setMembers(users
-        .map((u) => ({ Id: u.Id, Title: u.Title, Email: u.Email ?? "", PrincipalType: u.PrincipalType }))
+        .map((u) => ({ Id: u.Id, Title: u.Title, Email: u.Email ?? "", PrincipalType: u.PrincipalType, LoginName: u.LoginName ?? "" }))
         .sort((a, b) => a.Title.localeCompare(b.Title, "fr")));
     } catch (e: any) {
       console.error(e);
@@ -455,6 +466,11 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   const handleRemoveMember = async (member: IGroupMember): Promise<void> => {
     if (!membersGroup) return;
 
+    // Garde-fou : le bouton est désactivé pour ces membres, mais on bloque aussi ici
+    if (estMembreProtege(member)) {
+      setMemberMessage(MESSAGE_MEMBRE_PROTEGE);
+      return;
+    }
     if (membersGroup.nom === GROUPE_ASSOCIES && member.Id === currentUserId) {
       setMemberMessage(`Impossible de vous retirer vous-même du groupe "${GROUPE_ASSOCIES}" : vous perdriez l'accès à cet outil.`);
       return;
@@ -912,7 +928,8 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
                               <button
                                 className={styles.removeButton}
                                 onClick={() => handleRemoveMember(m)}
-                                disabled={removingMemberId === m.Id}
+                                disabled={estMembreProtege(m) || removingMemberId === m.Id}
+                                title={estMembreProtege(m) ? MESSAGE_MEMBRE_PROTEGE : undefined}
                               >
                                 {removingMemberId === m.Id ? "..." : "Retirer"}
                               </button>
@@ -1213,6 +1230,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
                       <li>Une confirmation vous est toujours demandée avant de retirer un accès.</li>
                       <li>Il est impossible de retirer le dernier titulaire du « {CONTROLE_TOTAL} » d’une direction.</li>
                       <li>Un groupe entier ne peut pas être retiré depuis cet outil (seuls ses membres peuvent l’être).</li>
+                      <li>À l’intérieur d’un groupe, seules les personnes peuvent être retirées : les groupes de sécurité et les comptes système sont protégés.</li>
                       <li>Vous ne pouvez pas vous retirer vous-même du groupe « {GROUPE_ASSOCIES} ».</li>
                     </ul>
                   </div>
