@@ -1,7 +1,8 @@
 // Composant React principal : toute l'interface et la logique métier du gestionnaire de permissions.
 // Fonctionnement :
 // - Vérifie que l'utilisateur appartient au groupe SharePoint "Associés" ; sinon l'outil n'est pas affiché.
-// - Liste les "directions" = bibliothèques de documents dont le titre commence par "Direction ".
+// - Liste les "directions" = bibliothèques de documents aux permissions indépendantes du site
+//   (ou, historiquement, dont le titre commence par "Direction "). Le nom est libre.
 // - Navigation en deux vues (V3) :
 //   · Vue Accueil (aucune direction sélectionnée) : grille de cartes, une par direction, + carte de création ;
 //   · Vue Détail (selectedLibrary renseigné) : tableau des permissions de la direction et bouton de retour.
@@ -66,7 +67,8 @@ interface IGroupMember {
 
 type TargetType = "user" | "group";
 
-// La vue Accueil affiche une carte pour chacune des bibliothèques de documents visibles dont le titre commence par ce préfixe
+// Préfixe historique : le nom d'une bibliothèque est désormais libre, mais celles qui le portent restent
+// affichées à l'accueil (même sans héritage rompu) et leur carte n'affiche que la suite du nom
 const DIRECTION_PREFIX = "Direction ";
 const TEMPLATE_DOCUMENT_LIBRARY = 101;
 const GROUPE_ASSOCIES = "Associés"; // À adapter au nom exact du groupe SharePoint
@@ -95,6 +97,8 @@ const CATEGORIES_FEEDBACK: { valeur: FeedbackCategorie; libelle: string }[] = [
   { valeur: "Suggestion", libelle: "Suggestion" },
   { valeur: "Question", libelle: "Question" }
 ];
+
+const estPrefixee = (titre: string): boolean => titre.indexOf(DIRECTION_PREFIX) === 0;
 
 const estGroupe = (principalType: number): boolean =>
   principalType === PRINCIPAL_TYPE_SHAREPOINT_GROUP ||
@@ -170,10 +174,12 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     try {
       const libs: any[] = await sp.web.lists
         .filter(`BaseTemplate eq ${TEMPLATE_DOCUMENT_LIBRARY} and Hidden eq false`)
-        .select("Title")();
+        .select("Title", "HasUniqueRoleAssignments")();
+      // Le nom étant libre, on reconnaît une direction à ses permissions indépendantes du site :
+      // cela écarte les bibliothèques système (Documents, Biens du site...), qui héritent du site.
       setDirections(libs
+        .filter((l) => l.HasUniqueRoleAssignments === true || estPrefixee(l.Title as string))
         .map((l) => l.Title as string)
-        .filter((t) => t.indexOf(DIRECTION_PREFIX) === 0)
         .sort((a, b) => a.localeCompare(b, "fr")));
     } catch (e) {
       console.error("Impossible de charger la liste des directions", e);
@@ -510,19 +516,16 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   };
 
   const handleCreateDirection = async (): Promise<void> => {
-    const saisie = newDirectionName.trim();
-    if (!saisie) {
-      setCreateMessage("Renseignez le nom de la nouvelle direction.");
+    // Nom libre : la bibliothèque est créée telle que saisie, sans préfixe imposé
+    const nom = newDirectionName.trim();
+    if (!nom) {
+      setCreateMessage("Renseignez le nom de la nouvelle bibliothèque.");
       return;
     }
-    if (CARACTERES_INTERDITS.test(saisie)) {
+    if (CARACTERES_INTERDITS.test(nom)) {
       setCreateMessage("Le nom ne peut pas contenir les caractères suivants : ~ \" # % & * : < > ? / \\ { | }");
       return;
     }
-    // Préfixe automatique pour que la bibliothèque apparaisse parmi les cartes de l'accueil
-    const nom = saisie.toLowerCase().indexOf(DIRECTION_PREFIX.toLowerCase()) === 0
-      ? DIRECTION_PREFIX + saisie.substring(DIRECTION_PREFIX.length)
-      : DIRECTION_PREFIX + saisie;
     if (directions.some((d) => d.toLowerCase() === nom.toLowerCase())) {
       setCreateMessage(`La bibliothèque "${nom}" existe déjà.`);
       return;
@@ -537,7 +540,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
       // Étape obligatoire : sans rupture d'héritage, roleAssignments.add()/remove() renvoient une erreur 400.
       // Sans copie des permissions, SharePoint attribue le Contrôle total au créateur.
       await sp.web.lists.getById(info.Id).breakRoleInheritance(false);
-      await logAction(sp, "Initialisation", nom, "", "Bibliothèque de direction créée, héritage des permissions rompu");
+      await logAction(sp, "Initialisation", nom, "", "Bibliothèque créée, héritage des permissions rompu");
 
       setIsCreateModalOpen(false);
       await loadDirections();
@@ -620,9 +623,9 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
     }
   };
 
-  // "Direction Juridique" -> "Juridique" (libellé affiché sur les cartes)
+  // Libellé affiché sur les cartes : "Direction Juridique" -> "Juridique", tout autre nom est affiché tel quel
   const libelleDirection = (dir: string): string =>
-    dir.substring(DIRECTION_PREFIX.length).trim() || dir;
+    estPrefixee(dir) ? dir.substring(DIRECTION_PREFIX.length).trim() || dir : dir;
 
   const masthead = (
     <header className={styles.masthead}>
@@ -682,14 +685,14 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
       ) : (
         <>
           {directions.length === 0 && (
-            <p className={styles.emptyState}>{`Aucune bibliothèque « ${DIRECTION_PREFIX}… » n'a été trouvée sur ce site.`}</p>
+            <p className={styles.emptyState}>{"Aucune bibliothèque aux permissions indépendantes n'a été trouvée sur ce site."}</p>
           )}
           <div className={styles.cardGrid}>
             {directions.map((dir) => {
               const libelle = libelleDirection(dir);
               return (
                 <button key={dir} type="button" className={styles.directionCard} onClick={() => openDirection(dir)}>
-                  <span className={styles.cardEyebrow}>Direction</span>
+                  <span className={styles.cardEyebrow}>{estPrefixee(dir) ? "Direction" : "Bibliothèque"}</span>
                   <span className={styles.cardTitle}>{libelle}</span>
                   <span className={styles.cardAction}>
                     Gérer les accès <span className={styles.cardArrow} aria-hidden="true">→</span>
@@ -699,7 +702,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
             })}
             <button type="button" className={`${styles.directionCard} ${styles.createCard}`} onClick={openCreateModal}>
               <span className={styles.createIcon} aria-hidden="true">+</span>
-              <span className={styles.cardTitle}>Créer une nouvelle Direction</span>
+              <span className={styles.cardTitle}>Créer une nouvelle bibliothèque</span>
               <span className={styles.cardHint}>Nouvelle bibliothèque aux permissions indépendantes</span>
             </button>
           </div>
@@ -1077,7 +1080,7 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
           >
             <div className={styles.modalHeader}>
               <div>
-                <h3 id="pm-create-modal-title" className={styles.modalTitle}>Créer une nouvelle Direction</h3>
+                <h3 id="pm-create-modal-title" className={styles.modalTitle}>Créer une nouvelle bibliothèque</h3>
                 <p className={styles.modalSubtitle}>Nouvelle bibliothèque de documents, aux permissions indépendantes du site</p>
               </div>
               <button className={styles.closeButton} onClick={closeCreateModal} disabled={createLoading} aria-label="Fermer">
@@ -1087,11 +1090,11 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
 
             <div className={styles.modalBody}>
               <label className={styles.field}>
-                <span className={styles.fieldLabel}>Nom de la direction</span>
+                <span className={styles.fieldLabel}>Nom de la bibliothèque</span>
                 <input
                   type="text"
                   className={styles.input}
-                  placeholder="Direction Juridique"
+                  placeholder="Ex. : Juridique, Archives 2026..."
                   value={newDirectionName}
                   onChange={(e) => setNewDirectionName(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter" && !createLoading) handleCreateDirection().catch(console.error); }}
