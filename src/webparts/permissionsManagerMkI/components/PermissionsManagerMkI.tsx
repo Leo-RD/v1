@@ -8,6 +8,8 @@
 //   · Vue Détail (selectedLibrary renseigné) : tableau des permissions de la direction et bouton de retour.
 // - Pour la direction choisie : affiche les permissions (utilisateurs et groupes), permet d'en ajouter,
 //   d'en supprimer, de gérer les membres des groupes SharePoint et de créer une nouvelle direction.
+// - Les groupes "SharingLinks.*" (liens créés par le bouton "Partager" de SharePoint) sont sortis du tableau
+//   et affichés à part, en lecture seule, avec le nom de l'élément partagé et les personnes concernées.
 // - Bouton "Comment ça marche ?" (en-tête) : fenêtre d'aide pour les non-initiés (mode d'emploi,
 //   différence Utilisateur / Groupe, niveaux d'accès, sécurités).
 // - Bouton "Votre avis" (en-tête) : page de feedback (retour, suggestion, question) ; le message est écrit dans
@@ -29,6 +31,8 @@ import "@pnp/sp/security/list";
 import "@pnp/sp/security/web";
 import "@pnp/sp/site-users/web";
 import "@pnp/sp/site-groups/web";
+import "@pnp/sp/files";
+import "@pnp/sp/folders";
 
 
 
@@ -65,7 +69,26 @@ interface IGroupMember {
   LoginName: string;
 }
 
+// Lien de partage créé par le bouton "Partager" de SharePoint sur un fichier ou un dossier
+interface IPartage {
+  principalId: number;
+  element: string;
+  typeLien: string;
+  membres: string[];
+}
+
 type TargetType = "user" | "group";
+
+// Groupes cachés créés par SharePoint pour chaque lien de partage :
+// "SharingLinks.<UniqueId de l'élément>.<type de lien>.<ID du lien>"
+const PREFIXE_LIEN_PARTAGE = "SharingLinks.";
+const TYPES_LIEN_PARTAGE: { [type: string]: string } = {
+  OrganizationView: "Personnes de l'organisation · lecture",
+  OrganizationEdit: "Personnes de l'organisation · modification",
+  AnonymousView: "Tout le monde (sans connexion) · lecture",
+  AnonymousEdit: "Tout le monde (sans connexion) · modification",
+  Flexible: "Personnes spécifiques"
+};
 
 // Préfixe historique : le nom d'une bibliothèque est désormais libre, mais celles qui le portent restent
 // affichées à l'accueil (même sans héritage rompu) et leur carte n'affiche que la suite du nom
@@ -111,6 +134,8 @@ const estMembreProtege = (member: IGroupMember): boolean =>
   member.PrincipalType !== PRINCIPAL_TYPE_USER ||
   !member.LoginName.toLowerCase().startsWith(PREFIXE_COMPTE_NOMINATIF);
 
+const estLienPartage = (nom: string): boolean => nom.indexOf(PREFIXE_LIEN_PARTAGE) === 0;
+
 const getPrincipalTypeLabel =(principalType: number): string => {
   switch (principalType) {
     case PRINCIPAL_TYPE_SHAREPOINT_GROUP: return "Groupe SharePoint";
@@ -124,6 +149,7 @@ const getPrincipalTypeLabel =(principalType: number): string => {
 const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => {
   const [selectedLibrary, setSelectedLibrary] = useState<string>("");
   const [permissions, setPermissions] = useState<IPermissionEntry[]>([]);
+  const [partages, setPartages] = useState<IPartage[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>("");
 
@@ -256,6 +282,39 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
   // pendant un chargement rend la réponse précédente obsolète, elle est alors ignorée.
   const permissionsRequestRef = useRef<number>(0);
 
+  // Nom du fichier ou dossier partagé, retrouvé depuis l'UniqueId contenu dans le nom du groupe
+  const getNomElementPartage = async (uniqueId: string): Promise<string> => {
+    try {
+      const file: any = await sp.web.getFileById(uniqueId).select("Name")();
+      return file.Name;
+    } catch {
+      try {
+        const folder: any = await sp.web.getFolderById(uniqueId).select("Name")();
+        return `Dossier « ${folder.Name} »`;
+      } catch {
+        return "Élément introuvable (supprimé ou déplacé)";
+      }
+    }
+  };
+
+  const loadPartages = async (entries: IPermissionEntry[], requestId: number): Promise<void> => {
+    const resultats = await Promise.all(entries.map(async (entry): Promise<IPartage> => {
+      const [, uniqueId, type] = entry.nom.split(".");
+      const [element, users] = await Promise.all([
+        getNomElementPartage(uniqueId),
+        sp.web.siteGroups.getById(entry.principalId).users.select("Title")().catch((): any[] => [])
+      ]);
+      return {
+        principalId: entry.principalId,
+        element,
+        typeLien: TYPES_LIEN_PARTAGE[type] ?? type,
+        membres: users.map((u: any) => u.Title as string).sort((a, b) => a.localeCompare(b, "fr"))
+      };
+    }));
+    if (requestId !== permissionsRequestRef.current) return;
+    setPartages(resultats.sort((a, b) => a.element.localeCompare(b.element, "fr")));
+  };
+
   const loadPermissions = async (libraryName: string): Promise<void> => {
     const requestId = ++permissionsRequestRef.current;
     setLoading(true);
@@ -278,7 +337,11 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
           roleDefIds: (ra.RoleDefinitionBindings || []).map((r: any) => r.Id)
         };
       });
-      setPermissions(mapped);
+      // Les liens de partage sont sortis du tableau principal : ils ne donnent accès qu'à un élément précis
+      // (et "Accès limité" sur la bibliothèque) et sont affichés à part, en lecture seule
+      setPermissions(mapped.filter((p) => !estLienPartage(p.nom)));
+      setPartages([]);
+      loadPartages(mapped.filter((p) => estLienPartage(p.nom)), requestId).catch(console.error);
       await logAction(sp, "Consultation", libraryName);
     } catch (e) {
       console.error(e);
@@ -785,6 +848,39 @@ const PermissionsManagerMkI: React.FC<IPermissionsManagerMkIProps> = (props) => 
               </tbody>
             </table>
           </div>
+
+          {partages.length > 0 && (
+            <>
+              <div className={styles.sectionHeader}>
+                <h3 className={styles.sectionTitle}>Fichiers et dossiers partagés</h3>
+                <p className={styles.sectionHint}>
+                  Ces personnes ont accès uniquement à l’élément indiqué, pas au reste de la bibliothèque.
+                  Ces accès ont été créés avec le bouton « Partager » de SharePoint. Pour en retirer un, ouvrez
+                  l’élément dans la bibliothèque puis « Gérer l’accès ».
+                </p>
+              </div>
+              <div className={styles.tableWrapper}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Élément partagé</th>
+                      <th>Type de lien</th>
+                      <th>Personnes ayant accès</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partages.map((s) => (
+                      <tr key={s.principalId}>
+                        <td className={styles.nameCell}>{s.element}</td>
+                        <td><span className={styles.typeTag}>{s.typeLien}</span></td>
+                        <td>{s.membres.length > 0 ? s.membres.join(", ") : "Aucune personne pour l’instant"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </>
       )}
     </section>
